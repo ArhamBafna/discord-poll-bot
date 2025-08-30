@@ -1,16 +1,17 @@
+
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// UPGRADED to use the Replit Database for persistent, corruption-proof data storage.
+
+// IMPORTANT NOTE FOR RENDER USERS: Render's free instances have an ephemeral filesystem.
+// This means the 'leaderboard.json' and 'lastpoll.json' files will be DELETED every time
+// the bot restarts or redeploys. For a persistent leaderboard, consider using a free database service.
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { GoogleGenAI, Type } = require('@google/genai');
 const cron = require('node-cron');
-const Database = require("@replit/database"); // Using Replit DB
-
-// --- Initialize Database ---
-const db = new Database();
+const fs = require('fs');
 
 // --- Configuration ---
 const GEMINI_API_KEY = process.env.API_KEY;
@@ -19,6 +20,8 @@ const TARGET_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
 const ALLOWED_USERNAME = 'ar_him';
 const CONTROL_ROLE_NAME = 'bot-control'; // The name of the role that can use commands
 const COMMAND_PREFIX = '!';
+const LEADERBOARD_FILE = './leaderboard.json';
+const LAST_POLL_FILE = './lastpoll.json';
 
 // Check if all necessary environment variables are set.
 if (!GEMINI_API_KEY || !DISCORD_BOT_TOKEN || !TARGET_CHANNEL_ID) {
@@ -30,42 +33,50 @@ if (!GEMINI_API_KEY || !DISCORD_BOT_TOKEN || !TARGET_CHANNEL_ID) {
 let lastPollData = null;
 let onDemandHistory = [];
 let leaderboard = {};
-let activeOnDemandPoll = null;
+let activeOnDemandPoll = null; // To hold the currently active on-demand poll
 
-// --- State DB Functions (Now Async) ---
-async function loadState() {
-  // Load Leaderboard from DB
-  const storedLeaderboard = await db.get("leaderboard");
-  if (storedLeaderboard) {
-    leaderboard = storedLeaderboard;
-    console.log('Leaderboard loaded successfully from Replit DB.');
-  } else {
-    console.log('No leaderboard found in DB, starting fresh.');
-    leaderboard = {};
+// --- State File Functions ---
+function loadState() {
+  // Load Leaderboard
+  if (fs.existsSync(LEADERBOARD_FILE)) {
+    try {
+      const leaderboardData = fs.readFileSync(LEADERBOARD_FILE, 'utf8');
+      if (leaderboardData) {
+        leaderboard = JSON.parse(leaderboardData);
+        console.log('Leaderboard loaded successfully.');
+      }
+    } catch (error) {
+      console.warn('Could not parse leaderboard.json, it might be corrupted. Starting with a fresh leaderboard.');
+      leaderboard = {};
+    }
   }
 
-  // Load Last Poll Data from DB
-  const storedLastPoll = await db.get("lastPollData");
-  if (storedLastPoll) {
-    lastPollData = storedLastPoll;
-    console.log('Last poll data loaded successfully from Replit DB.');
-  } else {
-    console.log('No last poll data found in DB.');
-    lastPollData = null;
+  // Load Last Poll Data
+  if (fs.existsSync(LAST_POLL_FILE)) {
+    try {
+      const lastPollFileData = fs.readFileSync(LAST_POLL_FILE, 'utf8');
+      if (lastPollFileData) {
+        lastPollData = JSON.parse(lastPollFileData);
+        console.log('Last poll data loaded successfully.');
+      }
+    } catch (error) {
+      console.warn('Could not parse lastpoll.json, it might be corrupted. Will proceed without last poll data.');
+      lastPollData = null;
+    }
   }
 }
 
-async function saveLeaderboard() {
+function saveLeaderboard() {
   try {
-    await db.set("leaderboard", leaderboard);
-    console.log('Leaderboard saved to Replit DB.');
-  } catch (error) { console.error('Error saving leaderboard to Replit DB:', error); }
+    fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(leaderboard, null, 2));
+    console.log('Leaderboard saved.');
+  } catch (error) { console.error('Error saving leaderboard:', error); }
 }
 
-async function saveLastPoll() {
+function saveLastPoll() {
   try {
-    await db.set("lastPollData", lastPollData);
-  } catch (error) { console.error('Error saving last poll data to Replit DB:', error); }
+    fs.writeFileSync(LAST_POLL_FILE, JSON.stringify(lastPollData, null, 2));
+  } catch (error) { console.error('Error saving last poll data:', error); }
 }
 
 // --- Initialize Clients ---
@@ -135,7 +146,7 @@ async function performDailyPost(channelId = TARGET_CHANNEL_ID) {
             });
             if (winners.length > 0) {
               console.log(`Awarded points to: ${winners.join(', ')}`);
-              await saveLeaderboard(); // Await the save operation
+              saveLeaderboard();
             }
 
             const correctOptionLetter = String.fromCharCode(65 + lastPollData.correctAnswerIndex);
@@ -163,7 +174,7 @@ async function performDailyPost(channelId = TARGET_CHANNEL_ID) {
       const newPollMessage = await channel.send({ content: title, poll: pollPayload });
       newPollData.pollMessageId = newPollMessage.id;
       lastPollData = newPollData;
-      await saveLastPoll(); // Await the save operation
+      saveLastPoll();
       console.log(`Successfully posted a ${newPollData.type} poll.`);
     }
   } catch (error) { console.error("An error occurred during the daily post:", error); }
@@ -218,10 +229,10 @@ async function postWeeklySummary() {
 }
 
 
-// --- Bot Startup Logic (Now Async) ---
-discordClient.once('ready', async () => {
+// --- Bot Startup Logic ---
+discordClient.once('ready', () => {
   console.log(`Bot is logged in as ${discordClient.user.tag}!`);
-  await loadState(); // Await the loading of data from the DB
+  loadState();
   // Daily poll at 10 AM ET
   cron.schedule('0 10 * * *', () => performDailyPost(), { scheduled: true, timezone: "America/New_York" });
   // Weekly summary at 9 PM ET on Sunday
@@ -253,6 +264,7 @@ discordClient.on('messageCreate', async (message) => {
         if (onDemandHistory.length > 5) onDemandHistory.shift();
         const pollMessage = await message.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollData.question }, answers: pollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
 
+        // Save the poll data to be revealed later
         activeOnDemandPoll = { ...pollData, messageId: pollMessage.id };
         await message.channel.send("Poll created! Use `!reveal` to show the answer when you're ready.");
       }
@@ -275,6 +287,8 @@ discordClient.on('messageCreate', async (message) => {
           .setFooter({text: 'On-demand polls do not count towards the leaderboard.'});
 
         await message.channel.send({ embeds: [answerEmbed] });
+
+        // Reset the state so a new poll can be created
         activeOnDemandPoll = null;
         console.log("On-demand poll revealed and reset.");
     } catch (error) {
@@ -287,6 +301,7 @@ discordClient.on('messageCreate', async (message) => {
     if (!hasPermission) return;
     try {
         await message.channel.send("Acknowledged. Manually triggering the daily poll process for this channel...");
+        // Pass the ID of the channel where the command was used
         await performDailyPost(message.channel.id);
     } catch (error) {
         console.error("Error handling '!postdaily' command:", error);
