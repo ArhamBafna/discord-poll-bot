@@ -52,6 +52,14 @@ async function initializeDatabase() {
         value JSONB
       );
     `);
+    // Create a table to store the history of questions to avoid repeats
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS question_history (
+        id SERIAL PRIMARY KEY,
+        question TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
     client.release();
     console.log('Database tables are set up and ready.');
   } catch (error) {
@@ -119,6 +127,22 @@ async function saveLastPollToDB() {
   }
 }
 
+async function saveQuestionToHistory(question) {
+    try {
+        // Insert the new question into our history
+        await pool.query('INSERT INTO question_history (question) VALUES ($1)', [question]);
+        // Prune old history, keeping only the most recent 50 entries to prevent the table from growing forever
+        await pool.query(`
+          DELETE FROM question_history
+          WHERE id NOT IN (
+            SELECT id FROM question_history ORDER BY created_at DESC LIMIT 50
+          );
+        `);
+    } catch (error) {
+        console.error('Error saving question to history:', error);
+    }
+}
+
 
 // --- Initialize Clients ---
 const discordClient = new Client({
@@ -140,10 +164,10 @@ const discussionPollSchema = {
 
 // --- Gemini API Generation Functions ---
 async function generateTriviaPoll(topic = '', history = []) {
-    console.log(`Generating a new TRIVIA poll. Topic: ${topic || 'Any'}`);
-    const historyInstruction = history.length > 0 ? `**Avoid topics similar to these recent questions:** - "${history.join('"\n- "')}"` : "";
+    console.log(`Generating a new TRIVIA poll. Topic: ${topic || 'Any'}. History length: ${history.length}`);
+    const historyInstruction = history.length > 0 ? `**To ensure variety, you MUST NOT create a poll about any of these recent topics:**\n- "${history.join('"\n- "')}"` : "";
     const topicInstruction = topic ? `The poll must be about this specific topic: **${topic}**.` : '';
-    const prompt = `You generate simple, general knowledge AI trivia polls for a non-technical audience. Your goal is to create an easy, fun, and accessible poll. ${topicInstruction} ${historyInstruction} **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
+    const prompt = `You generate engaging, intermediate-level trivia polls exclusively about Artificial Intelligence. The questions should be challenging but not obscure, suitable for an audience with some interest in AI. Your goal is to create a fun and thought-provoking poll. ${topicInstruction} ${historyInstruction} **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
     try {
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: triviaPollSchema, temperature: 0.9 }});
         return JSON.parse(response.text.trim());
@@ -205,8 +229,24 @@ async function performDailyPost(channelId = TARGET_CHANNEL_ID) {
         await channel.send(`Thanks for sharing your thoughts on yesterday's discussion: **"${lastPollData.question}"**`);
     }
 
-    const isDiscussionDay = Math.random() < 0.35;
-    let newPollData = isDiscussionDay ? await generateDiscussionPoll() : await generateTriviaPoll();
+    // --- New Poll Generation Logic ---
+    const today = new Date();
+    const dayOfWeek = today.toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
+    const isDiscussionDay = ['Tuesday', 'Friday'].includes(dayOfWeek); // Discussion polls on Tuesdays and Fridays
+
+    let questionHistory = [];
+    if (!isDiscussionDay) {
+        try {
+            const historyRes = await pool.query('SELECT question FROM question_history ORDER BY created_at DESC LIMIT 25');
+            questionHistory = historyRes.rows.map(row => row.question);
+            console.log(`Fetched ${questionHistory.length} previous questions to ensure variety.`);
+        } catch (error) {
+            console.error('Failed to fetch question history:', error);
+        }
+    }
+    
+    let newPollData = isDiscussionDay ? await generateDiscussionPoll() : await generateTriviaPoll('', questionHistory);
+    
     if (newPollData) {
       newPollData.type = isDiscussionDay ? 'discussion' : 'trivia';
       const pollPayload = { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false };
@@ -214,7 +254,11 @@ async function performDailyPost(channelId = TARGET_CHANNEL_ID) {
       const newPollMessage = await channel.send({ content: title, poll: pollPayload });
       newPollData.pollMessageId = newPollMessage.id;
       lastPollData = newPollData;
-      await saveLastPollToDB(); // SAVE TO DATABASE
+      await saveLastPollToDB();
+      // Save the new question to our history to avoid repeats
+      if (newPollData.type === 'trivia') {
+          await saveQuestionToHistory(newPollData.question);
+      }
       console.log(`Successfully posted a ${newPollData.type} poll.`);
     }
   } catch (error) { console.error("An error occurred during the daily post:", error); }
