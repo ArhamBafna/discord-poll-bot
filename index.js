@@ -1,11 +1,11 @@
 
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 3.2 (Multi-Server Full-Proof)
+// Version: 3.3 (Multi-Server Full-Proof - Syntax Fixed)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js'); // <-- THE FIX IS HERE
 const { GoogleGenAI, Type } = require('@google/genai');
 const cron = require('node-cron');
 const { Pool } = require('pg');
@@ -96,6 +96,9 @@ async function loadStateForGuild(guildId) {
         });
         
         const stateRes = await client.query("SELECT key, value FROM state WHERE guild_id = $1", [guildId]);
+        // Reset state before loading
+        state.lastPollData = null;
+        state.activeOnDemandPoll = null;
         for (const row of stateRes.rows) {
             if (row.key === 'lastPollData') state.lastPollData = row.value;
             if (row.key === 'activeOnDemandPoll') state.activeOnDemandPoll = row.value;
@@ -269,6 +272,7 @@ discordClient.on('messageCreate', async (message) => {
     if (command === 'asknow' && hasPermission) {
         if (state.activeOnDemandPoll) { return message.reply("There's already an active on-demand poll in this server. Use `!reveal` to end it."); }
         const topic = args.join(' ');
+        await message.channel.send(`On-demand trivia poll requested for topic "${topic || 'Any AI topic'}". Generating...`);
         const pollData = await generateTriviaPoll(topic, []);
         if (pollData) {
             const pollMessage = await message.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollData.question }, answers: pollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false } });
