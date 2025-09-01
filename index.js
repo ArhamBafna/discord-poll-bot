@@ -1,8 +1,6 @@
-
-
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 4.2 (Context-Aware Catch-up Messaging)
+// Version: 4.3 (Admin Point Management)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -132,6 +130,39 @@ async function updateUserScoreInDB(guildId, userId) {
         `, [guildId, userId]);
     } catch (error) {
         console.error(`[DATABASE] Failed to update score for user ${userId} in guild ${guildId}:`, error);
+    }
+}
+
+async function admin_setOrAddUserScore(guildId, userId, amount, mode = 'set') {
+    try {
+        const query = mode === 'add' ?
+            `INSERT INTO leaderboard (guild_id, user_id, score) VALUES ($1, $2, $3)
+             ON CONFLICT (guild_id, user_id) DO UPDATE SET score = leaderboard.score + $3
+             RETURNING score;` :
+            `INSERT INTO leaderboard (guild_id, user_id, score) VALUES ($1, $2, $3)
+             ON CONFLICT (guild_id, user_id) DO UPDATE SET score = $3
+             RETURNING score;`;
+        const res = await pool.query(query, [guildId, userId, amount]);
+        return res.rows.length > 0 ? res.rows[0].score : null;
+    } catch (error) {
+        console.error(`[DATABASE] Failed to ${mode} score for user ${userId} in guild ${guildId}:`, error);
+        return null;
+    }
+}
+
+async function admin_removeUserScore(guildId, userId, amount) {
+    try {
+        // This query updates the score but ensures it doesn't go below 0.
+        const res = await pool.query(`
+            UPDATE leaderboard SET score = GREATEST(0, score - $1) 
+            WHERE guild_id = $2 AND user_id = $3
+            RETURNING score;
+        `, [amount, guildId, userId]);
+        // If the user wasn't in the DB, they have 0 points.
+        return res.rows.length > 0 ? res.rows[0].score : 0;
+    } catch (error) {
+        console.error(`[DATABASE] Failed to remove score for user ${userId} in guild ${guildId}:`, error);
+        return null;
     }
 }
 
@@ -386,6 +417,49 @@ discordClient.on('messageCreate', async (message) => {
             state.activeOnDemandPoll = null;
             await deleteStateFromDB(guildId, 'activeOnDemandPoll');
         }
+        
+        if (command === 'points' && hasPermission) {
+            const subCommand = args.shift()?.toLowerCase();
+            const targetUser = message.mentions.users.first();
+            const amount = parseInt(args[0], 10);
+
+            if (!['add', 'remove', 'set'].includes(subCommand)) return message.reply('Invalid sub-command. Use `add`, `remove`, or `set`.');
+            if (!targetUser) return message.reply('You must mention a user to modify their points.');
+            if (isNaN(amount) || amount < 0) return message.reply('Please provide a valid, non-negative number for the amount.');
+
+            let newScore;
+            let replyMessage;
+
+            switch (subCommand) {
+                case 'add':
+                    newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'add');
+                    if (newScore !== null) {
+                        state.leaderboard[targetUser.id] = newScore;
+                        replyMessage = `💰 Success! Added **${amount}** points to **${targetUser.username}**. Their new score is **${newScore}**.`;
+                    }
+                    break;
+                case 'remove':
+                    newScore = await admin_removeUserScore(guildId, targetUser.id, amount);
+                    if (newScore !== null) {
+                        state.leaderboard[targetUser.id] = newScore;
+                        replyMessage = `💸 Success! Removed **${amount}** points from **${targetUser.username}**. Their new score is **${newScore}**.`;
+                    }
+                    break;
+                case 'set':
+                    newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'set');
+                    if (newScore !== null) {
+                        state.leaderboard[targetUser.id] = newScore;
+                        replyMessage = `📊 Success! Set **${targetUser.username}**'s score to **${newScore}**.`;
+                    }
+                    break;
+            }
+            
+            if (replyMessage) {
+                await message.reply(replyMessage);
+            } else {
+                await message.reply('A database error occurred while trying to modify the user\'s score.');
+            }
+        }
 
         if (command === 'postdaily' && hasPermission) {
             await message.reply("Acknowledged. Manually triggering the full daily poll process for this channel...");
@@ -422,7 +496,13 @@ discordClient.on('messageCreate', async (message) => {
             const embed = new EmbedBuilder().setColor('#5865F2').setTitle('🤖 Bot Commands').setDescription('Here are the available commands:');
             embed.addFields({ name: `${COMMAND_PREFIX}leaderboard`, value: 'Displays the top 10 players for this server.' }, { name: `${COMMAND_PREFIX}rank [@user]`, value: 'Shows your rank or a mentioned user\'s rank in this server.' }, { name: `${COMMAND_PREFIX}help`, value: 'Shows this help message.' });
             if (hasPermission) {
-                embed.addFields({ name: '--- Admin Commands ---', value: '\u200B' }, { name: `${COMMAND_PREFIX}asknow [topic]`, value: 'Starts an on-demand poll in this server.' }, { name: `${COMMAND_PREFIX}reveal`, value: 'Reveals the answer for the active poll in this server.' }, { name: `${COMMAND_PREFIX}postdaily`, value: 'Manually triggers the daily poll sequence in this channel.' });
+                embed.addFields(
+                  { name: '--- Admin Commands ---', value: '\u200B' }, 
+                  { name: `${COMMAND_PREFIX}points <add|remove|set> <@user> <amount>`, value: 'Manually adjusts a user\'s points.'},
+                  { name: `${COMMAND_PREFIX}asknow [topic]`, value: 'Starts an on-demand poll in this server.' }, 
+                  { name: `${COMMAND_PREFIX}reveal`, value: 'Reveals the answer for the active poll in this server.' }, 
+                  { name: `${COMMAND_PREFIX}postdaily`, value: 'Manually triggers the daily poll sequence in this channel.' }
+                );
             }
             await message.channel.send({ embeds: [embed] });
         }
