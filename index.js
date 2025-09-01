@@ -1,19 +1,31 @@
 
+
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 3.3 (Multi-Server Full-Proof - Syntax Fixed)
+// Version: 4.2 (Context-Aware Catch-up Messaging)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js'); // <-- THE FIX IS HERE
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { GoogleGenAI, Type } = require('@google/genai');
 const cron = require('node-cron');
 const { Pool } = require('pg');
 
+// --- Global Error Handlers (Safety Net) ---
+process.on('unhandledRejection', error => {
+    console.error('CRITICAL ERROR: Unhandled Promise Rejection:', error);
+});
+process.on('uncaughtException', error => {
+    console.error('CRITICAL ERROR: Uncaught Exception:', error);
+    // Exit on uncaught exceptions to ensure a clean state upon restart by your process manager.
+    process.exit(1);
+});
+
+
 // --- Configuration ---
 const GEMINI_API_KEY = process.env.API_KEY;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-// NEW: Reads a comma-separated list of channel IDs for scheduled posts.
+// Correctly reads the user's specified environment variable.
 const TARGET_CHANNEL_IDS = process.env.TARGET_CHANNEL_IDS ? process.env.TARGET_CHANNEL_IDS.split(',').map(id => id.trim()) : [];
 const DATABASE_URL = process.env.DATABASE_URL;
 const ALLOWED_USERNAME = 'ar_him';
@@ -34,7 +46,7 @@ const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 // --- State Management: In-memory cache for performance, keyed by Guild (Server) ID ---
 const serverStateCache = {};
 
-// --- Database Functions (Now all guild-aware) ---
+// --- Database Functions (Now all guild-aware and with error handling) ---
 async function initializeDatabase() {
   const client = await pool.connect();
   try {
@@ -103,7 +115,6 @@ async function loadStateForGuild(guildId) {
             if (row.key === 'lastPollData') state.lastPollData = row.value;
             if (row.key === 'activeOnDemandPoll') state.activeOnDemandPoll = row.value;
         }
-        console.log(`[STATE] State loaded for server ${guildId}.`);
     } catch (error) {
         console.error(`[STATE] CRITICAL ERROR loading state for server ${guildId}:`, error);
     } finally {
@@ -112,28 +123,45 @@ async function loadStateForGuild(guildId) {
 }
 
 async function updateUserScoreInDB(guildId, userId) {
-    const state = getServerState(guildId);
-    state.leaderboard[userId] = (state.leaderboard[userId] || 0) + 1;
-    await pool.query(`
-      INSERT INTO leaderboard (guild_id, user_id, score) VALUES ($1, $2, 1)
-      ON CONFLICT (guild_id, user_id) DO UPDATE SET score = leaderboard.score + 1;
-    `, [guildId, userId]);
+    try {
+        const state = getServerState(guildId);
+        state.leaderboard[userId] = (state.leaderboard[userId] || 0) + 1;
+        await pool.query(`
+          INSERT INTO leaderboard (guild_id, user_id, score) VALUES ($1, $2, 1)
+          ON CONFLICT (guild_id, user_id) DO UPDATE SET score = leaderboard.score + 1;
+        `, [guildId, userId]);
+    } catch (error) {
+        console.error(`[DATABASE] Failed to update score for user ${userId} in guild ${guildId}:`, error);
+    }
 }
 
 async function saveStateToDB(guildId, key, value) {
-    await pool.query(`
-      INSERT INTO state (guild_id, key, value) VALUES ($1, $2, $3)
-      ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;
-    `, [guildId, key, JSON.stringify(value)]);
+    try {
+        await pool.query(`
+          INSERT INTO state (guild_id, key, value) VALUES ($1, $2, $3)
+          ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;
+        `, [guildId, key, JSON.stringify(value)]);
+    } catch (error) {
+        console.error(`[DATABASE] Failed to save state key '${key}' for guild ${guildId}:`, error);
+    }
 }
 
 async function deleteStateFromDB(guildId, key) {
-    await pool.query('DELETE FROM state WHERE guild_id = $1 AND key = $2', [guildId, key]);
+    try {
+        await pool.query('DELETE FROM state WHERE guild_id = $1 AND key = $2', [guildId, key]);
+    } catch (error) {
+        console.error(`[DATABASE] Failed to delete state key '${key}' for guild ${guildId}:`, error);
+    }
 }
 
 async function saveQuestionToHistory(guildId, question) {
-    await pool.query('INSERT INTO question_history (guild_id, question) VALUES ($1, $2)', [guildId, question]);
-    await pool.query(`DELETE FROM question_history WHERE guild_id = $1 AND id NOT IN (SELECT id FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50);`, [guildId]);
+    try {
+        await pool.query('INSERT INTO question_history (guild_id, question) VALUES ($1, $2)', [guildId, question]);
+        // Prune old history to keep the table size manageable
+        await pool.query(`DELETE FROM question_history WHERE guild_id = $1 AND id NOT IN (SELECT id FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50);`, [guildId]);
+    } catch (error) {
+        console.error(`[DATABASE] Failed to save question history for guild ${guildId}:`, error);
+    }
 }
 
 // --- Gemini API Schemas (Stateless) ---
@@ -158,9 +186,9 @@ async function generateDiscussionPoll() {
     } catch (error) { console.error("[GEMINI] Error generating DISCUSSION poll:", error); return null; }
 }
 
-// --- Main Scheduled Post Function (Now loops through channels) ---
-async function performDailyPost(channelId) {
-    console.log(`[POLL] Starting daily post for channel: ${channelId}`);
+// --- Main Scheduled Post Function (Now accepts a catch-up flag) ---
+async function performDailyPost(channelId, isCatchUp = false) {
+    console.log(`[POLL] Starting daily post for channel: ${channelId}. Catch-up mode: ${isCatchUp}`);
     try {
         const channel = await discordClient.channels.fetch(channelId);
         if (!channel || !channel.guild) { console.error(`[POLL] Channel ${channelId} not found or is not in a server.`); return; }
@@ -170,7 +198,6 @@ async function performDailyPost(channelId) {
         const state = getServerState(guildId);
 
         if (state.lastPollData && state.lastPollData.type === 'trivia' && state.lastPollData.pollMessageId) {
-            // Process yesterday's trivia poll for scoring...
             try {
                 const pollMessage = await channel.messages.fetch(state.lastPollData.pollMessageId);
                 const correctAnswer = pollMessage.poll.answers.at(state.lastPollData.correctAnswerIndex);
@@ -185,7 +212,7 @@ async function performDailyPost(channelId) {
                 const correctOptionLetter = String.fromCharCode(65 + state.lastPollData.correctAnswerIndex);
                 const answerEmbed = new EmbedBuilder().setColor('#5865F2').setTitle(`Yesterday's Poll Answer 🧐`).setDescription(`The correct answer to **"${state.lastPollData.question}"** was **${correctOptionLetter}: ${state.lastPollData.options[state.lastPollData.correctAnswerIndex]}**.\n\n${state.lastPollData.explanation}`).addFields({ name: 'Leaderboard Update', value: `**${winners.length}** member(s) answered correctly and have been awarded a point!` });
                 await channel.send({ embeds: [answerEmbed] });
-            } catch (fetchError) { console.error(`[POLL][${guildId}] Could not fetch or process the previous poll message.`, fetchError); }
+            } catch (fetchError) { console.error(`[POLL][${guildId}] Could not fetch or process the previous poll message. It may have expired or been deleted.`, fetchError); }
         }
 
         const dayOfWeek = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
@@ -199,8 +226,17 @@ async function performDailyPost(channelId) {
         const newPollData = isDiscussionDay ? await generateDiscussionPoll() : await generateTriviaPoll('', questionHistory);
         if (newPollData) {
             newPollData.type = isDiscussionDay ? 'discussion' : 'trivia';
-            const newPollMessage = await channel.send({ content: newPollData.type === 'discussion' ? "**Let's Discuss!** 🤔" : "**Today's AI Poll!** 🧠", poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false } });
+            
+            let pollIntroMessage;
+            if (isCatchUp) {
+                pollIntroMessage = "Oops, forgot to post the poll today! Here it is... 😅";
+            } else {
+                pollIntroMessage = newPollData.type === 'discussion' ? "**Let's Discuss!** 🤔" : "**Today's AI Poll!** 🧠";
+            }
+
+            const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false } });
             newPollData.pollMessageId = newPollMessage.id;
+            newPollData.createdAt = new Date().toISOString(); // Timestamp for catch-up logic
             
             state.lastPollData = newPollData;
             await saveStateToDB(guildId, 'lastPollData', newPollData);
@@ -236,6 +272,61 @@ async function postWeeklySummary(channelId) {
     } catch(error) { console.error(`[LEADERBOARD][Channel: ${channelId}] Failed to post weekly summary:`, error); }
 }
 
+async function checkForMissedPolls() {
+    console.log('[STARTUP] Checking for any missed daily polls due to downtime...');
+    const now = new Date();
+    const nyTimezone = 'America/New_York';
+
+    // Get today's date at 10:00 AM in New York.
+    const scheduledTimeTodayNY = new Date(now.toLocaleString('en-US', { timeZone: nyTimezone }));
+    scheduledTimeTodayNY.setHours(10, 0, 0, 0);
+    const scheduledTimestampToday = scheduledTimeTodayNY.getTime();
+
+    // If it's not yet 10 AM in NY, no poll was missed today.
+    if (now.getTime() < scheduledTimestampToday) {
+        console.log('[STARTUP] It is before 10 AM in New York. No scheduled polls should have been posted yet today.');
+        return;
+    }
+
+    for (const channelId of TARGET_CHANNEL_IDS) {
+        try {
+            const channel = await discordClient.channels.fetch(channelId);
+            if (!channel || !channel.guild) {
+                console.warn(`[STARTUP] Could not find channel/guild for ID ${channelId}. Skipping.`);
+                continue;
+            }
+            const guildId = channel.guild.id;
+
+            await loadStateForGuild(guildId);
+            const state = getServerState(guildId);
+            
+            if (state.lastPollData && state.lastPollData.createdAt) {
+                const lastPostDate = new Date(state.lastPollData.createdAt);
+                
+                // Get just the date part of the last post and today, in the NY timezone, for a reliable comparison.
+                const lastPostDateNY = new Date(lastPostDate.toLocaleString('en-US', { timeZone: nyTimezone }));
+                const todayNY = new Date(now.toLocaleString('en-US', { timeZone: nyTimezone }));
+                lastPostDateNY.setHours(0,0,0,0);
+                todayNY.setHours(0,0,0,0);
+
+                if (lastPostDateNY.getTime() < todayNY.getTime()) {
+                    console.log(`[STARTUP] Missed poll detected for channel ${channelId}. Last post was on a previous day. Triggering catch-up.`);
+                    await performDailyPost(channelId, true);
+                } else {
+                    console.log(`[STARTUP] Poll for channel ${channelId} was already posted today. No action needed.`);
+                }
+            } else {
+                // This handles the very first run for a channel.
+                console.log(`[STARTUP] No previous poll data found for channel ${channelId}. Triggering initial post.`);
+                await performDailyPost(channelId, true);
+            }
+        } catch (error) {
+            console.error(`[STARTUP] CRITICAL ERROR during catch-up check for channel ${channelId}:`, error);
+        }
+    }
+    console.log('[STARTUP] Missed poll check complete.');
+}
+
 
 // --- Bot Startup Logic ---
 discordClient.once('ready', async () => {
@@ -243,8 +334,12 @@ discordClient.once('ready', async () => {
   await initializeDatabase();
   console.log(`Logged in as ${discordClient.user.tag}!`);
 
-  // Schedule tasks for each target channel
+  // Run the catch-up check once on startup.
+  await checkForMissedPolls();
+
+  // Schedule future tasks for each target channel
   TARGET_CHANNEL_IDS.forEach(channelId => {
+    // This is the normal, on-time schedule, so isCatchUp is false by default.
     cron.schedule('0 10 * * *', () => performDailyPost(channelId), { scheduled: true, timezone: "America/New_York" });
     cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId), { scheduled: true, timezone: "America/New_York" });
     console.log(`[SCHEDULER] Daily and weekly tasks scheduled for channel ${channelId}.`);
@@ -253,82 +348,92 @@ discordClient.once('ready', async () => {
   console.log('--- Bot is fully operational. ---');
 });
 
-// --- Command Handler (Now guild-aware) ---
+// --- Command Handler (Now guild-aware AND with robust error handling) ---
 discordClient.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild || !message.content.startsWith(COMMAND_PREFIX)) return;
+    try {
+        if (message.author.bot || !message.guild || !message.content.startsWith(COMMAND_PREFIX)) return;
 
-    const guildId = message.guild.id;
-    const hasPermission = message.author.username === ALLOWED_USERNAME || message.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
-    const args = message.content.slice(COMMAND_PREFIX.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
-    
-    // Lazy-load state for the server if a command is run
-    if (!serverStateCache[guildId]) {
-        await loadStateForGuild(guildId);
-    }
-    const state = getServerState(guildId);
-
-    // --- Commands ---
-    if (command === 'asknow' && hasPermission) {
-        if (state.activeOnDemandPoll) { return message.reply("There's already an active on-demand poll in this server. Use `!reveal` to end it."); }
-        const topic = args.join(' ');
-        await message.channel.send(`On-demand trivia poll requested for topic "${topic || 'Any AI topic'}". Generating...`);
-        const pollData = await generateTriviaPoll(topic, []);
-        if (pollData) {
-            const pollMessage = await message.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollData.question }, answers: pollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false } });
-            state.activeOnDemandPoll = { ...pollData, messageId: pollMessage.id };
-            await saveStateToDB(guildId, 'activeOnDemandPoll', state.activeOnDemandPoll);
-        } else { await message.channel.send("Sorry, I couldn't generate a poll from the AI right now."); }
-    }
-
-    if (command === 'reveal' && hasPermission) {
-        if (!state.activeOnDemandPoll) { return message.reply("There is no active on-demand poll to reveal in this server."); }
-        const pollData = state.activeOnDemandPoll;
-        const correctOptionLetter = String.fromCharCode(65 + pollData.correctAnswerIndex);
-        const answerEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle('Answer & Explanation 🧐').setDescription(`**Q: ${pollData.question}**`).addFields({ name: 'Correct Answer', value: `**${correctOptionLetter}: ${pollData.options[pollData.correctAnswerIndex]}**` }, { name: 'Explanation', value: pollData.explanation }).setFooter({text: 'On-demand polls do not award points.'});
-        await message.channel.send({ embeds: [answerEmbed] });
-        state.activeOnDemandPoll = null;
-        await deleteStateFromDB(guildId, 'activeOnDemandPoll');
-    }
-
-    if (command === 'postdaily' && hasPermission) {
-        await message.reply("Acknowledged. Manually triggering the daily poll process for this channel...");
-        await performDailyPost(message.channel.id);
-    }
-    
-    if (command === 'leaderboard' || command === 'rank') {
-        const sortedUsers = Object.entries(state.leaderboard).sort(([,a],[,b]) => b - a);
-        if (sortedUsers.length === 0) { return message.channel.send('The leaderboard for this server is empty!'); }
+        const guildId = message.guild.id;
+        const hasPermission = message.author.username === ALLOWED_USERNAME || message.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
+        const args = message.content.slice(COMMAND_PREFIX.length).trim().split(/ +/);
+        const command = args.shift().toLowerCase();
         
-        if (command === 'leaderboard') {
-            let description = '';
-            for (let i = 0; i < Math.min(sortedUsers.length, 10); i++) {
-                const [userId, score] = sortedUsers[i];
-                try {
-                    const user = await discordClient.users.fetch(userId);
-                    description += `**${i + 1}. ${user.username}** - ${score} points\n`;
-                } catch { description += `**${i + 1}.** *Unknown User* - ${score} points\n`; }
-            }
-            const embed = new EmbedBuilder().setColor('#F1C40F').setTitle(`🏆 AI Poll Leaderboard for ${message.guild.name} 🏆`).setDescription(description);
-            await message.channel.send({ embeds: [embed] });
-        } else { // rank command
-            const targetUser = message.mentions.users.first() || message.author;
-            const userRankIndex = sortedUsers.findIndex(([userId]) => userId === targetUser.id);
-            if (userRankIndex !== -1) {
-                await message.channel.send(`${targetUser.username}, you are currently **rank #${userRankIndex + 1}** in this server with **${sortedUsers[userRankIndex][1]}** point(s).`);
-            } else {
-                await message.channel.send(`${targetUser.username}, you are not on this server's leaderboard yet.`);
-            }
+        // Lazy-load state for the server if a command is run
+        if (!serverStateCache[guildId]) {
+            await loadStateForGuild(guildId);
         }
-    }
+        const state = getServerState(guildId);
 
-    if (command === 'help') {
-        const embed = new EmbedBuilder().setColor('#5865F2').setTitle('🤖 Bot Commands').setDescription('Here are the available commands:');
-        embed.addFields({ name: `${COMMAND_PREFIX}leaderboard`, value: 'Displays the top 10 players for this server.' }, { name: `${COMMAND_PREFIX}rank [@user]`, value: 'Shows your rank or a mentioned user\'s rank in this server.' }, { name: `${COMMAND_PREFIX}help`, value: 'Shows this help message.' });
-        if (hasPermission) {
-            embed.addFields({ name: '--- Admin Commands ---', value: '\u200B' }, { name: `${COMMAND_PREFIX}asknow [topic]`, value: 'Starts an on-demand poll in this server.' }, { name: `${COMMAND_PREFIX}reveal`, value: 'Reveals the answer for the active poll in this server.' }, { name: `${COMMAND_PREFIX}postdaily`, value: 'Manually triggers the daily poll sequence in this channel.' });
+        // --- Commands ---
+        if (command === 'asknow' && hasPermission) {
+            if (state.activeOnDemandPoll) { return message.reply("There's already an active on-demand poll in this server. Use `!reveal` to end it."); }
+            const topic = args.join(' ');
+            await message.channel.send(`On-demand trivia poll requested for topic "${topic || 'Any AI topic'}". Generating...`);
+            const pollData = await generateTriviaPoll(topic, []);
+            if (pollData) {
+                const pollMessage = await message.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollData.question }, answers: pollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false } });
+                state.activeOnDemandPoll = { ...pollData, messageId: pollMessage.id };
+                await saveStateToDB(guildId, 'activeOnDemandPoll', state.activeOnDemandPoll);
+            } else { await message.channel.send("Sorry, I couldn't generate a poll from the AI right now."); }
         }
-        await message.channel.send({ embeds: [embed] });
+
+        if (command === 'reveal' && hasPermission) {
+            if (!state.activeOnDemandPoll) { return message.reply("There is no active on-demand poll to reveal in this server."); }
+            const pollData = state.activeOnDemandPoll;
+            const correctOptionLetter = String.fromCharCode(65 + pollData.correctAnswerIndex);
+            const answerEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle('Answer & Explanation 🧐').setDescription(`**Q: ${pollData.question}**`).addFields({ name: 'Correct Answer', value: `**${correctOptionLetter}: ${pollData.options[pollData.correctAnswerIndex]}**` }, { name: 'Explanation', value: pollData.explanation }).setFooter({text: 'On-demand polls do not award points.'});
+            await message.channel.send({ embeds: [answerEmbed] });
+            state.activeOnDemandPoll = null;
+            await deleteStateFromDB(guildId, 'activeOnDemandPoll');
+        }
+
+        if (command === 'postdaily' && hasPermission) {
+            await message.reply("Acknowledged. Manually triggering the full daily poll process for this channel...");
+            await performDailyPost(message.channel.id, true);
+        }
+        
+        if (command === 'leaderboard' || command === 'rank') {
+            const sortedUsers = Object.entries(state.leaderboard).sort(([,a],[,b]) => b - a);
+            if (sortedUsers.length === 0) { return message.channel.send('The leaderboard for this server is empty!'); }
+            
+            if (command === 'leaderboard') {
+                let description = '';
+                for (let i = 0; i < Math.min(sortedUsers.length, 10); i++) {
+                    const [userId, score] = sortedUsers[i];
+                    try {
+                        const user = await discordClient.users.fetch(userId);
+                        description += `**${i + 1}. ${user.username}** - ${score} points\n`;
+                    } catch { description += `**${i + 1}.** *Unknown User* - ${score} points\n`; }
+                }
+                const embed = new EmbedBuilder().setColor('#F1C40F').setTitle(`🏆 AI Poll Leaderboard for ${message.guild.name} 🏆`).setDescription(description);
+                await message.channel.send({ embeds: [embed] });
+            } else { // rank command
+                const targetUser = message.mentions.users.first() || message.author;
+                const userRankIndex = sortedUsers.findIndex(([userId]) => userId === targetUser.id);
+                if (userRankIndex !== -1) {
+                    await message.channel.send(`${targetUser.username}, you are currently **rank #${userRankIndex + 1}** in this server with **${sortedUsers[userRankIndex][1]}** point(s).`);
+                } else {
+                    await message.channel.send(`${targetUser.username}, you are not on this server's leaderboard yet.`);
+                }
+            }
+        }
+
+        if (command === 'help') {
+            const embed = new EmbedBuilder().setColor('#5865F2').setTitle('🤖 Bot Commands').setDescription('Here are the available commands:');
+            embed.addFields({ name: `${COMMAND_PREFIX}leaderboard`, value: 'Displays the top 10 players for this server.' }, { name: `${COMMAND_PREFIX}rank [@user]`, value: 'Shows your rank or a mentioned user\'s rank in this server.' }, { name: `${COMMAND_PREFIX}help`, value: 'Shows this help message.' });
+            if (hasPermission) {
+                embed.addFields({ name: '--- Admin Commands ---', value: '\u200B' }, { name: `${COMMAND_PREFIX}asknow [topic]`, value: 'Starts an on-demand poll in this server.' }, { name: `${COMMAND_PREFIX}reveal`, value: 'Reveals the answer for the active poll in this server.' }, { name: `${COMMAND_PREFIX}postdaily`, value: 'Manually triggers the daily poll sequence in this channel.' });
+            }
+            await message.channel.send({ embeds: [embed] });
+        }
+    } catch (error) {
+        console.error(`[COMMAND_HANDLER] Error processing command in guild ${message.guild?.id} for user ${message.author?.id}:`, error);
+        try {
+            // Attempt to notify the user that something went wrong.
+            await message.reply("Oops! Something went wrong while processing your command. The incident has been logged.");
+        } catch (replyError) {
+            console.error(`[COMMAND_HANDLER] CRITICAL: Failed to send error reply in guild ${message.guild?.id}. Bot may lack permissions.`, replyError);
+        }
     }
 });
 
