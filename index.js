@@ -1,6 +1,6 @@
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 4.3 (Admin Point Management)
+// Version: 4.4 (Bug Fixes & Enhanced Logging)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -113,6 +113,7 @@ async function loadStateForGuild(guildId) {
             if (row.key === 'lastPollData') state.lastPollData = row.value;
             if (row.key === 'activeOnDemandPoll') state.activeOnDemandPoll = row.value;
         }
+        console.log(`[STATE] State loaded for guild ${guildId}: lastPollData is ${state.lastPollData ? 'present' : 'null'}`);
     } catch (error) {
         console.error(`[STATE] CRITICAL ERROR loading state for server ${guildId}:`, error);
     } finally {
@@ -227,7 +228,8 @@ async function performDailyPost(channelId, isCatchUp = false) {
         const guildId = channel.guild.id;
         await loadStateForGuild(guildId); // Ensure state is loaded
         const state = getServerState(guildId);
-
+        
+        console.log(`[POLL][${guildId}] Checking for previous poll to resolve. lastPollData found: ${!!state.lastPollData}`);
         if (state.lastPollData && state.lastPollData.type === 'trivia' && state.lastPollData.pollMessageId) {
             try {
                 const pollMessage = await channel.messages.fetch(state.lastPollData.pollMessageId);
@@ -243,7 +245,7 @@ async function performDailyPost(channelId, isCatchUp = false) {
                 const correctOptionLetter = String.fromCharCode(65 + state.lastPollData.correctAnswerIndex);
                 const answerEmbed = new EmbedBuilder().setColor('#5865F2').setTitle(`Yesterday's Poll Answer 🧐`).setDescription(`The correct answer to **"${state.lastPollData.question}"** was **${correctOptionLetter}: ${state.lastPollData.options[state.lastPollData.correctAnswerIndex]}**.\n\n${state.lastPollData.explanation}`).addFields({ name: 'Leaderboard Update', value: `**${winners.length}** member(s) answered correctly and have been awarded a point!` });
                 await channel.send({ embeds: [answerEmbed] });
-            } catch (fetchError) { console.error(`[POLL][${guildId}] Could not fetch or process the previous poll message. It may have expired or been deleted.`, fetchError); }
+            } catch (fetchError) { console.error(`[POLL][${guildId}] Could not fetch or process previous poll message (ID: ${state.lastPollData?.pollMessageId}). It may have been deleted, or the bot lacks permissions.`, fetchError); }
         }
 
         const dayOfWeek = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
@@ -419,13 +421,15 @@ discordClient.on('messageCreate', async (message) => {
         }
         
         if (command === 'points' && hasPermission) {
+            console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated 'points' command. Full command: "${message.content}"`);
             const subCommand = args.shift()?.toLowerCase();
             const targetUser = message.mentions.users.first();
-            const amount = parseInt(args[0], 10);
+            // The amount is the argument after the user mention.
+            const amount = parseInt(args[1], 10);
 
             if (!['add', 'remove', 'set'].includes(subCommand)) return message.reply('Invalid sub-command. Use `add`, `remove`, or `set`.');
             if (!targetUser) return message.reply('You must mention a user to modify their points.');
-            if (isNaN(amount) || amount < 0) return message.reply('Please provide a valid, non-negative number for the amount.');
+            if (isNaN(amount) || amount < 0) return message.reply('Please provide a valid, positive number for the amount. Use the `remove` subcommand to subtract points.');
 
             let newScore;
             let replyMessage;
@@ -434,6 +438,7 @@ discordClient.on('messageCreate', async (message) => {
                 case 'add':
                     newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'add');
                     if (newScore !== null) {
+                        console.log(`[POINTS][${guildId}] Added ${amount} points to ${targetUser.username}. New score: ${newScore}.`);
                         state.leaderboard[targetUser.id] = newScore;
                         replyMessage = `💰 Success! Added **${amount}** points to **${targetUser.username}**. Their new score is **${newScore}**.`;
                     }
@@ -441,6 +446,7 @@ discordClient.on('messageCreate', async (message) => {
                 case 'remove':
                     newScore = await admin_removeUserScore(guildId, targetUser.id, amount);
                     if (newScore !== null) {
+                        console.log(`[POINTS][${guildId}] Removed ${amount} points from ${targetUser.username}. New score: ${newScore}.`);
                         state.leaderboard[targetUser.id] = newScore;
                         replyMessage = `💸 Success! Removed **${amount}** points from **${targetUser.username}**. Their new score is **${newScore}**.`;
                     }
@@ -448,6 +454,7 @@ discordClient.on('messageCreate', async (message) => {
                 case 'set':
                     newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'set');
                     if (newScore !== null) {
+                        console.log(`[POINTS][${guildId}] Set ${targetUser.username}'s score to ${newScore}.`);
                         state.leaderboard[targetUser.id] = newScore;
                         replyMessage = `📊 Success! Set **${targetUser.username}**'s score to **${newScore}**.`;
                     }
@@ -457,6 +464,7 @@ discordClient.on('messageCreate', async (message) => {
             if (replyMessage) {
                 await message.reply(replyMessage);
             } else {
+                console.error(`[POINTS][${guildId}] Database error during 'points' command execution. Subcommand: ${subCommand}, Target: ${targetUser.username}`);
                 await message.reply('A database error occurred while trying to modify the user\'s score.');
             }
         }
