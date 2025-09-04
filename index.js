@@ -12,6 +12,7 @@ const { Pool } = require('pg');
 // --- Global Error Handlers (Safety Net) ---
 process.on('unhandledRejection', error => {
     console.error('CRITICAL ERROR: Unhandled Promise Rejection:', error);
+    process.exit(1);
 });
 process.on('uncaughtException', error => {
     console.error('CRITICAL ERROR: Uncaught Exception:', error);
