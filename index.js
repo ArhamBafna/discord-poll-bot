@@ -311,14 +311,16 @@ async function checkForMissedPolls() {
     const now = new Date();
     const nyTimezone = 'America/New_York';
 
-    // Get today's date at 10:00 AM in New York.
-    const scheduledTimeTodayNY = new Date(now.toLocaleString('en-US', { timeZone: nyTimezone }));
-    scheduledTimeTodayNY.setHours(10, 0, 0, 0);
-    const scheduledTimestampToday = scheduledTimeTodayNY.getTime();
+    // Get the current hour in New York using a reliable method.
+    const currentHourNY = parseInt(new Intl.DateTimeFormat('en-US', {
+        timeZone: nyTimezone,
+        hour: '2-digit',
+        hour12: false // Use 24-hour format for simplicity (00-23)
+    }).format(now), 10);
 
-    // If it's not yet 10 AM in NY, no poll was missed today.
-    if (now.getTime() < scheduledTimestampToday) {
-        console.log('[STARTUP] It is before 10 AM in New York. No scheduled polls should have been posted yet today.');
+    // The poll is scheduled for 10 AM. If it's earlier than that in NY, no poll was missed today.
+    if (currentHourNY < 10) {
+        console.log(`[STARTUP] It is before 10 AM in New York (Current Hour: ${currentHourNY}). No scheduled polls should have been posted yet today.`);
         return;
     }
 
@@ -335,19 +337,25 @@ async function checkForMissedPolls() {
             const state = getServerState(guildId);
             
             if (state.lastPollData && state.lastPollData.createdAt) {
-                const lastPostDate = new Date(state.lastPollData.createdAt);
+                const lastPostDate = new Date(state.lastPollData.createdAt); // This is a UTC Date object
                 
-                // Get just the date part of the last post and today, in the NY timezone, for a reliable comparison.
-                const lastPostDateNY = new Date(lastPostDate.toLocaleString('en-US', { timeZone: nyTimezone }));
-                const todayNY = new Date(now.toLocaleString('en-US', { timeZone: nyTimezone }));
-                lastPostDateNY.setHours(0,0,0,0);
-                todayNY.setHours(0,0,0,0);
+                // Reliably format both the current date and the last post date into YYYY-MM-DD strings *in the NY timezone*.
+                // This avoids all timezone conversion errors when comparing dates.
+                const formatter = new Intl.DateTimeFormat('en-CA', { // 'en-CA' gives the YYYY-MM-DD format
+                    timeZone: nyTimezone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                });
 
-                if (lastPostDateNY.getTime() < todayNY.getTime()) {
-                    console.log(`[STARTUP] Missed poll detected for channel ${channelId}. Last post was on a previous day. Triggering catch-up.`);
+                const todayNYString = formatter.format(now);
+                const lastPostDateNYString = formatter.format(lastPostDate);
+
+                if (lastPostDateNYString < todayNYString) {
+                    console.log(`[STARTUP] Missed poll detected for channel ${channelId}. Last post was on ${lastPostDateNYString}, but today is ${todayNYString}. Triggering catch-up.`);
                     await performDailyPost(channelId, true);
                 } else {
-                    console.log(`[STARTUP] Poll for channel ${channelId} was already posted today. No action needed.`);
+                    console.log(`[STARTUP] Poll for channel ${channelId} was already posted today (${lastPostDateNYString}). No action needed.`);
                 }
             } else {
                 // This handles the very first run for a channel.
