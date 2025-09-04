@@ -1,6 +1,6 @@
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 4.7 (Secure Relink & Full Logging)
+// Version: 4.8 (Consistent Command Logging)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -479,6 +479,7 @@ discordClient.on('messageCreate', async (message) => {
         }
         
         if (command === 'relinkpoll' && hasPermission) {
+            console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated 'relinkpoll' command.`);
             const messageId = args[0];
             const correctOptionNumber = parseInt(args[1], 10);
 
