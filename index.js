@@ -1,6 +1,6 @@
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 4.4 (Bug Fixes & Enhanced Logging)
+// Version: 4.5 (Disaster Recovery Command)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -433,48 +433,86 @@ discordClient.on('messageCreate', async (message) => {
             console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated 'points' command. Full command: "${message.content}"`);
             const subCommand = args.shift()?.toLowerCase();
             const targetUser = message.mentions.users.first();
-            // The amount is the argument after the user mention.
             const amount = parseInt(args[1], 10);
 
             if (!['add', 'remove', 'set'].includes(subCommand)) return message.reply('Invalid sub-command. Use `add`, `remove`, or `set`.');
             if (!targetUser) return message.reply('You must mention a user to modify their points.');
-            if (isNaN(amount) || amount < 0) return message.reply('Please provide a valid, positive number for the amount. Use the `remove` subcommand to subtract points.');
+            if (isNaN(amount) || amount < 0) return message.reply('Please provide a valid, positive number for the amount.');
 
-            let newScore;
-            let replyMessage;
-
-            switch (subCommand) {
-                case 'add':
+            let newScore = null;
+            // First, perform the database operation.
+            try {
+                if (subCommand === 'add') {
                     newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'add');
-                    if (newScore !== null) {
-                        console.log(`[POINTS][${guildId}] Added ${amount} points to ${targetUser.username}. New score: ${newScore}.`);
-                        state.leaderboard[targetUser.id] = newScore;
-                        replyMessage = `💰 Success! Added **${amount}** points to **${targetUser.username}**. Their new score is **${newScore}**.`;
-                    }
-                    break;
-                case 'remove':
+                } else if (subCommand === 'remove') {
                     newScore = await admin_removeUserScore(guildId, targetUser.id, amount);
-                    if (newScore !== null) {
-                        console.log(`[POINTS][${guildId}] Removed ${amount} points from ${targetUser.username}. New score: ${newScore}.`);
-                        state.leaderboard[targetUser.id] = newScore;
-                        replyMessage = `💸 Success! Removed **${amount}** points from **${targetUser.username}**. Their new score is **${newScore}**.`;
-                    }
-                    break;
-                case 'set':
+                } else if (subCommand === 'set') {
                     newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'set');
-                    if (newScore !== null) {
-                        console.log(`[POINTS][${guildId}] Set ${targetUser.username}'s score to ${newScore}.`);
-                        state.leaderboard[targetUser.id] = newScore;
-                        replyMessage = `📊 Success! Set **${targetUser.username}**'s score to **${newScore}**.`;
-                    }
-                    break;
+                }
+            } catch (dbError) {
+                console.error(`[POINTS][${guildId}] Database error during points operation for ${targetUser.username}:`, dbError);
+                // newScore will remain null, triggering the failure message.
             }
-            
-            if (replyMessage) {
+
+            // Then, handle the result of the operation.
+            if (newScore !== null) {
+                state.leaderboard[targetUser.id] = newScore; // Update in-memory cache
+                let replyMessage = '';
+
+                if (subCommand === 'add') {
+                    console.log(`[POINTS][${guildId}] Added ${amount} points to ${targetUser.username}. New score: ${newScore}.`);
+                    replyMessage = `💰 Success! Added **${amount}** points to **${targetUser.username}**. Their new score is **${newScore}**.`;
+                } else if (subCommand === 'remove') {
+                    console.log(`[POINTS][${guildId}] Removed ${amount} points from ${targetUser.username}. New score: ${newScore}.`);
+                    replyMessage = `💸 Success! Removed **${amount}** points from **${targetUser.username}**. Their new score is **${newScore}**.`;
+                } else { // 'set'
+                    console.log(`[POINTS][${guildId}] Set ${targetUser.username}'s score to ${newScore}.`);
+                    replyMessage = `📊 Success! Set **${targetUser.username}**'s score to **${newScore}**.`;
+                }
                 await message.reply(replyMessage);
             } else {
-                console.error(`[POINTS][${guildId}] Database error during 'points' command execution. Subcommand: ${subCommand}, Target: ${targetUser.username}`);
+                console.error(`[POINTS][${guildId}] Failed to execute 'points' command. Subcommand: ${subCommand}, Target: ${targetUser.username}`);
                 await message.reply('A database error occurred while trying to modify the user\'s score.');
+            }
+        }
+        
+        if (command === 'relinkpoll' && hasPermission) {
+            const messageId = args[0];
+            const correctOptionNumber = parseInt(args[1], 10);
+
+            if (!messageId || !/^\d+$/.test(messageId)) { return message.reply("Please provide a valid poll message ID."); }
+            if (isNaN(correctOptionNumber) || correctOptionNumber < 1 || correctOptionNumber > 10) { return message.reply("Please provide a valid correct option number (e.g., 1 for A, 2 for B)."); }
+            const correctAnswerIndex = correctOptionNumber - 1;
+
+            try {
+                const pollMessage = await message.channel.messages.fetch(messageId);
+                if (!pollMessage.poll) { return message.reply("The provided message ID does not appear to be a poll."); }
+
+                const question = pollMessage.poll.question.text;
+                const options = pollMessage.poll.answers.map(a => a.text);
+
+                if (correctAnswerIndex >= options.length) { return message.reply(`The correct option number (${correctOptionNumber}) is invalid for this poll, which only has ${options.length} options.`); }
+                
+                const correctAnswerText = options[correctAnswerIndex];
+                await message.channel.send("Relinking poll... This might take a moment while I generate a new explanation.");
+                
+                const explanationPrompt = `The trivia question is: "${question}". The correct answer is "${correctAnswerText}". Please provide a concise, engaging explanation for why this is the correct answer, suitable for a Discord poll bot.`;
+                const explanationResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: explanationPrompt });
+                const explanation = explanationResponse.text.trim();
+
+                if (!explanation) { return message.reply("Sorry, I couldn't generate an explanation from the AI. The relink has been aborted."); }
+
+                const newPollData = { question, options, correctAnswerIndex, explanation, type: 'trivia', pollMessageId: pollMessage.id, createdAt: pollMessage.createdAt.toISOString() };
+
+                state.lastPollData = newPollData;
+                await saveStateToDB(guildId, 'lastPollData', newPollData);
+
+                const successEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle('✅ Poll Relink Successful').setDescription(`I have successfully relinked the bot's memory to the specified poll.`).addFields({ name: 'Question', value: question }, { name: 'Correct Answer Set To', value: `Option ${correctOptionNumber}: ${correctAnswerText}` }).setFooter({ text: "This poll will now be correctly resolved on its next scheduled cycle." });
+                await message.channel.send({ embeds: [successEmbed] });
+
+            } catch (fetchError) {
+                console.error(`[COMMAND][relinkpoll] Error fetching message ${messageId}:`, fetchError);
+                return message.reply("I couldn't find a message with that ID in this channel. Please make sure you are in the correct channel and the ID is correct.");
             }
         }
 
@@ -518,7 +556,8 @@ discordClient.on('messageCreate', async (message) => {
                   { name: `${COMMAND_PREFIX}points <add|remove|set> <@user> <amount>`, value: 'Manually adjusts a user\'s points.'},
                   { name: `${COMMAND_PREFIX}asknow [topic]`, value: 'Starts an on-demand poll in this server.' }, 
                   { name: `${COMMAND_PREFIX}reveal`, value: 'Reveals the answer for the active poll in this server.' }, 
-                  { name: `${COMMAND_PREFIX}postdaily`, value: 'Manually triggers the daily poll sequence in this channel.' }
+                  { name: `${COMMAND_PREFIX}postdaily`, value: 'Manually triggers the daily poll sequence in this channel.' },
+                  { name: `${COMMAND_PREFIX}relinkpoll <message_id> <correct_option_#>`, value: "Fixes the bot's memory to point to an existing poll. Use after a manual deletion or error." }
                 );
             }
             await message.channel.send({ embeds: [embed] });
