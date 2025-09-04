@@ -1,6 +1,6 @@
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 4.5 (Disaster Recovery Command)
+// Version: 4.7 (Secure Relink & Full Logging)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -408,6 +408,7 @@ discordClient.on('messageCreate', async (message) => {
 
         // --- Commands ---
         if (command === 'asknow' && hasPermission) {
+            console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated 'asknow' command.`);
             if (state.activeOnDemandPoll) { return message.reply("There's already an active on-demand poll in this server. Use `!reveal` to end it."); }
             const topic = args.join(' ');
             await message.channel.send(`On-demand trivia poll requested for topic "${topic || 'Any AI topic'}". Generating...`);
@@ -420,6 +421,7 @@ discordClient.on('messageCreate', async (message) => {
         }
 
         if (command === 'reveal' && hasPermission) {
+            console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated 'reveal' command.`);
             if (!state.activeOnDemandPoll) { return message.reply("There is no active on-demand poll to reveal in this server."); }
             const pollData = state.activeOnDemandPoll;
             const correctOptionLetter = String.fromCharCode(65 + pollData.correctAnswerIndex);
@@ -506,8 +508,16 @@ discordClient.on('messageCreate', async (message) => {
 
                 state.lastPollData = newPollData;
                 await saveStateToDB(guildId, 'lastPollData', newPollData);
+                console.log(`[COMMAND][${guildId}] User ${message.author.username} successfully relinked to poll message ${messageId}.`);
 
-                const successEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle('✅ Poll Relink Successful').setDescription(`I have successfully relinked the bot's memory to the specified poll.`).addFields({ name: 'Question', value: question }, { name: 'Correct Answer Set To', value: `Option ${correctOptionNumber}: ${correctAnswerText}` }).setFooter({ text: "This poll will now be correctly resolved on its next scheduled cycle." });
+                const successEmbed = new EmbedBuilder()
+                    .setColor('#2ECC71')
+                    .setTitle('✅ Poll Relink Successful')
+                    .setDescription(`I have successfully updated the bot's memory.`)
+                    .addFields(
+                        { name: 'Relinked To Poll', value: `*${question}*` }
+                    )
+                    .setFooter({ text: "This poll will now be correctly resolved during its next scheduled cycle." });
                 await message.channel.send({ embeds: [successEmbed] });
 
             } catch (fetchError) {
@@ -517,11 +527,13 @@ discordClient.on('messageCreate', async (message) => {
         }
 
         if (command === 'postdaily' && hasPermission) {
+            console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated 'postdaily' command.`);
             await message.reply("Acknowledged. Manually triggering the full daily poll process for this channel...");
             await performDailyPost(message.channel.id, true);
         }
         
         if (command === 'leaderboard' || command === 'rank') {
+            console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated '${command}' command.`);
             const sortedUsers = Object.entries(state.leaderboard).sort(([,a],[,b]) => b - a);
             if (sortedUsers.length === 0) { return message.channel.send('The leaderboard for this server is empty!'); }
             
@@ -548,6 +560,7 @@ discordClient.on('messageCreate', async (message) => {
         }
 
         if (command === 'help') {
+            console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated 'help' command.`);
             const embed = new EmbedBuilder().setColor('#5865F2').setTitle('🤖 Bot Commands').setDescription('Here are the available commands:');
             embed.addFields({ name: `${COMMAND_PREFIX}leaderboard`, value: 'Displays the top 10 players for this server.' }, { name: `${COMMAND_PREFIX}rank [@user]`, value: 'Shows your rank or a mentioned user\'s rank in this server.' }, { name: `${COMMAND_PREFIX}help`, value: 'Shows this help message.' });
             if (hasPermission) {
