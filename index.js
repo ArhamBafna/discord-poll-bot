@@ -1,6 +1,6 @@
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 4.8 (Consistent Command Logging)
+// Version: 4.9 (Robust Poll Resolution & Recovery)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -219,6 +219,80 @@ async function generateDiscussionPoll() {
     } catch (error) { console.error("[GEMINI] Error generating DISCUSSION poll:", error); return null; }
 }
 
+// --- Poll Resolution Function ---
+async function resolveLastPoll(channel) {
+    if (!channel || !channel.guild) {
+        console.error(`[RESOLVE] Invalid channel provided for poll resolution.`);
+        return false;
+    }
+    const guildId = channel.guild.id;
+
+    if (!serverStateCache[guildId]) {
+        await loadStateForGuild(guildId);
+    }
+    const state = getServerState(guildId);
+
+    if (state.lastPollData && state.lastPollData.type === 'trivia' && state.lastPollData.pollMessageId) {
+        const pollId = state.lastPollData.pollMessageId;
+        console.log(`[RESOLVE][${guildId}] Beginning resolution for previous trivia poll (ID: ${pollId}).`);
+        try {
+            console.log(`[RESOLVE][${guildId}][Step 1/5] Fetching poll message...`);
+            const pollMessage = await channel.messages.fetch(pollId);
+            console.log(`[RESOLVE][${guildId}][Step 1/5] SUCCESS: Poll message fetched.`);
+
+            console.log(`[RESOLVE][${guildId}][Step 2/5] Validating message is a poll...`);
+            if (!pollMessage.poll) {
+                console.error(`[RESOLVE][${guildId}][Step 2/5] FAILED: Fetched message (ID: ${pollId}) is not a poll. Aborting resolution.`);
+                return false;
+            }
+            console.log(`[RESOLVE][${guildId}][Step 2/5] SUCCESS: Message is a valid poll.`);
+
+            console.log(`[RESOLVE][${guildId}][Step 3/5] Identifying correct answer and fetching voters...`);
+            const correctAnswer = pollMessage.poll.answers.at(state.lastPollData.correctAnswerIndex);
+            if (!correctAnswer) {
+                console.error(`[RESOLVE][${guildId}][Step 3/5] FAILED: Correct answer index (${state.lastPollData.correctAnswerIndex}) is out of bounds for poll (ID: ${pollId}). Aborting.`);
+                return false;
+            }
+            const voters = await correctAnswer.fetchVoters();
+            console.log(`[RESOLVE][${guildId}][Step 3/5] SUCCESS: Found ${voters.size} voter(s) for the correct answer.`);
+
+            console.log(`[RESOLVE][${guildId}][Step 4/5] Updating scores for winners...`);
+            let winners = [];
+            for (const user of voters.values()) {
+                if (!user.bot) {
+                    await updateUserScoreInDB(guildId, user.id);
+                    winners.push(user.username);
+                }
+            }
+            console.log(`[RESOLVE][${guildId}][Step 4/5] SUCCESS: Processed ${winners.length} winner(s).`);
+
+            console.log(`[RESOLVE][${guildId}][Step 5/5] Posting answer and summary...`);
+            const correctOptionLetter = String.fromCharCode(65 + state.lastPollData.correctAnswerIndex);
+            const answerEmbed = new EmbedBuilder().setColor('#5865F2').setTitle(`Yesterday's Poll Answer 🧐`).setDescription(`The correct answer to **"${state.lastPollData.question}"** was **${correctOptionLetter}: ${state.lastPollData.options[state.lastPollData.correctAnswerIndex]}**.\n\n${state.lastPollData.explanation}`).addFields({ name: 'Leaderboard Update', value: `**${winners.length}** member(s) answered correctly and have been awarded a point!` });
+            await channel.send({ embeds: [answerEmbed] });
+            console.log(`[RESOLVE][${guildId}][Step 5/5] SUCCESS: Answer posted.`);
+            console.log(`[RESOLVE][${guildId}] Poll resolution completed successfully.`);
+            return true;
+        } catch (error) {
+            let errorMessage = `[RESOLVE][${guildId}] FAILED: Could not process previous poll (ID: ${pollId}).`;
+            if (error.code === 10008) {
+                errorMessage += ` REASON: The message was likely DELETED. Use the \`!relinkpoll\` command to fix.`;
+                console.error(errorMessage);
+            } else if (error.code === 50013 || error.code === 50001) {
+                errorMessage += ` REASON: The bot has MISSING PERMISSIONS (likely 'Read Message History' or 'View Channel') in channel #${channel.name}. Please check the bot's role.`;
+                console.error(errorMessage, error);
+            } else {
+                errorMessage += ` REASON: An unexpected error occurred. See details below.`;
+                console.error(errorMessage, error);
+            }
+            return false;
+        }
+    } else {
+        console.log(`[RESOLVE][${guildId}] No previous trivia poll found in state to resolve.`);
+        return true; // Not a failure, just nothing to do.
+    }
+}
+
 // --- Main Scheduled Post Function (Now accepts a catch-up flag) ---
 async function performDailyPost(channelId, isCatchUp = false) {
     console.log(`[POLL] Starting daily post for channel: ${channelId}. Catch-up mode: ${isCatchUp}`);
@@ -230,25 +304,10 @@ async function performDailyPost(channelId, isCatchUp = false) {
         await loadStateForGuild(guildId); // Ensure state is loaded
         const state = getServerState(guildId);
         
-        console.log(`[POLL][${guildId}] Checking for previous poll to resolve. lastPollData found: ${!!state.lastPollData}`);
-        if (state.lastPollData && state.lastPollData.type === 'trivia' && state.lastPollData.pollMessageId) {
-            try {
-                const pollMessage = await channel.messages.fetch(state.lastPollData.pollMessageId);
-                const correctAnswer = pollMessage.poll.answers.at(state.lastPollData.correctAnswerIndex);
-                const voters = await correctAnswer.fetchVoters();
-                let winners = [];
-                for (const user of voters.values()) {
-                    if (!user.bot) {
-                        await updateUserScoreInDB(guildId, user.id);
-                        winners.push(user.username);
-                    }
-                }
-                const correctOptionLetter = String.fromCharCode(65 + state.lastPollData.correctAnswerIndex);
-                const answerEmbed = new EmbedBuilder().setColor('#5865F2').setTitle(`Yesterday's Poll Answer 🧐`).setDescription(`The correct answer to **"${state.lastPollData.question}"** was **${correctOptionLetter}: ${state.lastPollData.options[state.lastPollData.correctAnswerIndex]}**.\n\n${state.lastPollData.explanation}`).addFields({ name: 'Leaderboard Update', value: `**${winners.length}** member(s) answered correctly and have been awarded a point!` });
-                await channel.send({ embeds: [answerEmbed] });
-            } catch (fetchError) { console.error(`[POLL][${guildId}] Could not fetch or process previous poll message (ID: ${state.lastPollData?.pollMessageId}). It may have been deleted, or the bot lacks permissions.`, fetchError); }
-        }
+        // --- Resolve Yesterday's Poll ---
+        await resolveLastPoll(channel);
 
+        // --- Post Today's Poll ---
         const dayOfWeek = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
         const isDiscussionDay = ['Tuesday', 'Friday'].includes(dayOfWeek);
         let questionHistory = [];
@@ -518,12 +577,28 @@ discordClient.on('messageCreate', async (message) => {
                     .addFields(
                         { name: 'Relinked To Poll', value: `*${question}*` }
                     )
-                    .setFooter({ text: "This poll will now be correctly resolved during its next scheduled cycle." });
+                    .setFooter({ text: "Use the !resolve command to process this poll and award points." });
                 await message.channel.send({ embeds: [successEmbed] });
 
             } catch (fetchError) {
                 console.error(`[COMMAND][relinkpoll] Error fetching message ${messageId}:`, fetchError);
                 return message.reply("I couldn't find a message with that ID in this channel. Please make sure you are in the correct channel and the ID is correct.");
+            }
+        }
+
+        if (command === 'resolve' && hasPermission) {
+            console.log(`[COMMAND][${guildId}] User ${message.author.username} initiated 'resolve' command.`);
+            if (!state.lastPollData) {
+                return message.reply("There is no poll in my memory to resolve for this server.");
+            }
+            await message.reply("Acknowledged. Manually resolving the last known poll. This will not post a new one.");
+            const success = await resolveLastPoll(message.channel);
+            if (success) {
+                state.lastPollData = null;
+                await deleteStateFromDB(guildId, 'lastPollData');
+                await message.channel.send("✅ Last poll has been successfully resolved and cleared from memory.");
+            } else {
+                await message.channel.send("❌ Something went wrong during resolution. Check the logs for details. The poll has not been cleared from memory, so you can try again or use `!relinkpoll` if needed.");
             }
         }
 
@@ -571,7 +646,8 @@ discordClient.on('messageCreate', async (message) => {
                   { name: `${COMMAND_PREFIX}asknow [topic]`, value: 'Starts an on-demand poll in this server.' }, 
                   { name: `${COMMAND_PREFIX}reveal`, value: 'Reveals the answer for the active poll in this server.' }, 
                   { name: `${COMMAND_PREFIX}postdaily`, value: 'Manually triggers the daily poll sequence in this channel.' },
-                  { name: `${COMMAND_PREFIX}relinkpoll <message_id> <correct_option_#>`, value: "Fixes the bot's memory to point to an existing poll. Use after a manual deletion or error." }
+                  { name: `${COMMAND_PREFIX}relinkpoll <message_id> <correct_option_#>`, value: "Fixes the bot's memory to point to an existing poll after an error." },
+                  { name: `${COMMAND_PREFIX}resolve`, value: "Manually resolves the last-known poll without posting a new one. Use after `!relinkpoll` to fix a missed poll." }
                 );
             }
             await message.channel.send({ embeds: [embed] });
