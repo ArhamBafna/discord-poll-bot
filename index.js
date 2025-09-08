@@ -1,3 +1,5 @@
+// --- AI ASSISTANT INSTRUCTION --- READ THE `AI_ASSISTANT_README.md` FILE BEFORE MAKING ANY CHANGES. IT CONTAINS CRITICAL, PERMANENT DIRECTIVES FOR THIS PROJECT. --- END OF INSTRUCTION ---
+
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
 // Version: 4.9 (Robust Poll Resolution & Recovery)
@@ -663,6 +665,8 @@ discordClient.on('messageCreate', async (message) => {
     }
 });
 
-// --- Login to Discord ---
-discordClient.login(DISCORD_BOT_TOKEN);
+// --- Start Health Check & Login ---
+// This starts the web server immediately to satisfy Render's health checks.
 keepAlive();
+// After the server is confirmed to be running, we log in to Discord.
+discordClient.login(DISCORD_BOT_TOKEN);
