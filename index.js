@@ -385,12 +385,12 @@ async function checkForMissedPolls() {
         return;
     }
 
-    for (const channelId of TARGET_CHANNEL_IDS) {
+    const checkPromises = TARGET_CHANNEL_IDS.map(async (channelId) => {
         try {
             const channel = await discordClient.channels.fetch(channelId);
             if (!channel || !channel.guild) {
                 console.warn(`[STARTUP] Could not find channel/guild for ID ${channelId}. Skipping.`);
-                continue;
+                return;
             }
             const guildId = channel.guild.id;
 
@@ -426,7 +426,9 @@ async function checkForMissedPolls() {
         } catch (error) {
             console.error(`[STARTUP] CRITICAL ERROR during catch-up check for channel ${channelId}:`, error);
         }
-    }
+    });
+
+    await Promise.all(checkPromises);
     console.log('[STARTUP] Missed poll check complete.');
 }
 
@@ -437,9 +439,6 @@ discordClient.once('ready', async () => {
   await initializeDatabase();
   console.log(`Logged in as ${discordClient.user.tag}!`);
 
-  // Run the catch-up check once on startup.
-  await checkForMissedPolls();
-
   // Schedule future tasks for each target channel
   TARGET_CHANNEL_IDS.forEach(channelId => {
     // This is the normal, on-time schedule, so isCatchUp is false by default.
@@ -449,6 +448,15 @@ discordClient.once('ready', async () => {
   });
   
   console.log('--- Bot is fully operational. ---');
+  
+  // Defer the heavy poll check to prevent startup timeouts from hosting platform health checkers.
+  // This gives the server time to become responsive before starting the intensive task.
+  console.log('[STARTUP] Scheduling a delayed check for missed polls in 5 seconds...');
+  setTimeout(() => {
+    checkForMissedPolls().catch(err => {
+        console.error("[STARTUP] CRITICAL: The deferred poll check failed unexpectedly.", err);
+    });
+  }, 5000); // 5-second delay
 });
 
 // --- Command Handler (Now guild-aware AND with robust error handling) ---
