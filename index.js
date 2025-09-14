@@ -2,7 +2,7 @@
 
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 4.9 (Robust Poll Resolution & Recovery)
+// Version: 5.0 (Resilient Generation with User Notifications)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -203,22 +203,74 @@ async function saveQuestionToHistory(guildId, question) {
 const triviaPollSchema = { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, minItems: 4, maxItems: 4 }, correctAnswerIndex: { type: Type.INTEGER }, explanation: { type: Type.STRING } }, required: ["question", "options", "correctAnswerIndex", "explanation"] };
 const discussionPollSchema = { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, minItems: 2, maxItems: 4 } }, required: ["question", "options"] };
 
-// --- Gemini API Generation Functions (Stateless) ---
-async function generateTriviaPoll(topic = '', history = []) {
+// --- Gemini API Generation Functions (Now with Retry Logic & User Notifications) ---
+async function generateTriviaPoll(topic = '', history = [], channel = null) {
     const historyInstruction = history.length > 0 ? `**To ensure variety, you MUST NOT create a poll about any of these recent topics:**\n- "${history.join('"\n- "')}"` : "";
     const prompt = `You generate fun and engaging trivia polls about Artificial Intelligence for a general audience. The questions should be easy to understand (middle/high school level), interesting, and based on well-known AI facts or applications. Avoid overly simple questions like "What does AI stand for?". Good examples are: "Which company created ChatGPT?", "What everyday app uses AI for route navigation?", or "Which game was famously mastered by DeepMind’s AI?". ${topic ? `The poll must be about: **${topic}**.` : ''} ${historyInstruction} **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
-    try {
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: triviaPollSchema, temperature: 0.9 }});
-        return JSON.parse(response.text.trim());
-    } catch (error) { console.error("[GEMINI] Error generating TRIVIA poll:", error); return null; }
+
+    const MAX_RETRIES = 4;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: triviaPollSchema, temperature: 0.9 }});
+            return JSON.parse(response.text.trim());
+        } catch (error) {
+            const isRetryable = error.message && (error.message.includes('503') || error.message.includes('500') || error.message.includes('429'));
+            
+            // On the first failed attempt of a scheduled post, notify the channel there's a delay.
+            if (isRetryable && attempt === 1 && channel) {
+                try {
+                    await channel.send("apologies, but i seem to be having some connection issues with the AI at the moment. i'll keep trying in the background and will post today's poll as soon as i can!");
+                    console.log(`[GEMINI][NOTIFY] Notified channel #${channel.name} of a temporary API issue.`);
+                } catch (e) {
+                    console.error(`[GEMINI][NOTIFY] FAILED to send notification to channel #${channel.name}. Bot may lack permissions.`, e);
+                }
+            }
+
+            if (isRetryable && attempt < MAX_RETRIES) {
+                const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 1000); // 2s, 4s, 8s + jitter
+                console.warn(`[GEMINI][RETRY] Trivia poll generation failed on attempt ${attempt}/${MAX_RETRIES}. Retrying in ${Math.round(delay/1000)}s...`);
+                await new Promise(res => setTimeout(res, delay));
+            } else {
+                console.error(`[GEMINI] CRITICAL: Failed to generate TRIVIA poll after ${attempt} attempts.`, error);
+                return null;
+            }
+        }
+    }
+    return null; // Fallback in case loop finishes unexpectedly
 }
 
-async function generateDiscussionPoll() {
+async function generateDiscussionPoll(channel = null) {
     const prompt = `You generate subjective, opinion-based polls about AI to spark community discussion. Good examples: "What AI Model do you primarily use?", "Will AI take over the world?". **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate poll based on schema.`;
-    try {
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: discussionPollSchema, temperature: 1.0 }});
-        return JSON.parse(response.text.trim());
-    } catch (error) { console.error("[GEMINI] Error generating DISCUSSION poll:", error); return null; }
+    
+    const MAX_RETRIES = 4;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: discussionPollSchema, temperature: 1.0 }});
+            return JSON.parse(response.text.trim());
+        } catch (error) {
+            const isRetryable = error.message && (error.message.includes('503') || error.message.includes('500') || error.message.includes('429'));
+
+            // On the first failed attempt of a scheduled post, notify the channel there's a delay.
+            if (isRetryable && attempt === 1 && channel) {
+                try {
+                    await channel.send("apologies, but i seem to be having some connection issues with the AI at the moment. i'll keep trying in the background and will post today's poll as soon as i can!");
+                    console.log(`[GEMINI][NOTIFY] Notified channel #${channel.name} of a temporary API issue.`);
+                } catch (e) {
+                    console.error(`[GEMINI][NOTIFY] FAILED to send notification to channel #${channel.name}. Bot may lack permissions.`, e);
+                }
+            }
+
+            if (isRetryable && attempt < MAX_RETRIES) {
+                const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 1000); // 2s, 4s, 8s + jitter
+                console.warn(`[GEMINI][RETRY] Discussion poll generation failed on attempt ${attempt}/${MAX_RETRIES}. Retrying in ${Math.round(delay/1000)}s...`);
+                await new Promise(res => setTimeout(res, delay));
+            } else {
+                console.error(`[GEMINI] CRITICAL: Failed to generate DISCUSSION poll after ${attempt} attempts.`, error);
+                return null;
+            }
+        }
+    }
+    return null; // Fallback in case loop finishes unexpectedly
 }
 
 // --- Poll Resolution Function ---
@@ -318,7 +370,7 @@ async function performDailyPost(channelId, isCatchUp = false) {
             questionHistory = historyRes.rows.map(row => row.question);
         }
         
-        const newPollData = isDiscussionDay ? await generateDiscussionPoll() : await generateTriviaPoll('', questionHistory);
+        const newPollData = isDiscussionDay ? await generateDiscussionPoll(channel) : await generateTriviaPoll('', questionHistory, channel);
         if (newPollData) {
             newPollData.type = isDiscussionDay ? 'discussion' : 'trivia';
             
@@ -336,6 +388,10 @@ async function performDailyPost(channelId, isCatchUp = false) {
             state.lastPollData = newPollData;
             await saveStateToDB(guildId, 'lastPollData', newPollData);
             if (newPollData.type === 'trivia') await saveQuestionToHistory(guildId, newPollData.question);
+        } else {
+            // The notification to the channel was already sent by the generation function on the first failure.
+            // This log is for the server owner to know that all retries were exhausted.
+            console.error(`[POLL][Channel: ${channelId}] FINAL FAILURE: Could not generate a new poll from Gemini after all retries.`);
         }
     } catch (error) { console.error(`[POLL][Channel: ${channelId}] A critical error occurred during the daily post:`, error); }
 }
@@ -486,7 +542,7 @@ discordClient.on('messageCreate', async (message) => {
                 const pollMessage = await message.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollData.question }, answers: pollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false } });
                 state.activeOnDemandPoll = { ...pollData, messageId: pollMessage.id };
                 await saveStateToDB(guildId, 'activeOnDemandPoll', state.activeOnDemandPoll);
-            } else { await message.channel.send("Sorry, I couldn't generate a poll from the AI right now."); }
+            } else { await message.channel.send("Sorry, I couldn't generate a poll from the AI right now, it seems to be overloaded. Please try again in a few moments."); }
         }
 
         if (command === 'reveal' && hasPermission) {
