@@ -2,7 +2,7 @@
 
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 5.0 (Resilient Generation with User Notifications)
+// Version: 5.2 (Stability and Performance Patch)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -77,11 +77,12 @@ async function initializeDatabase() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    client.release();
     console.log('[DATABASE] All tables are set up for multi-server support.');
   } catch (error) {
     console.error('[DATABASE] CRITICAL ERROR: Failed to initialize database.', error);
     process.exit(1);
+  } finally {
+    client.release();
   }
 }
 
@@ -124,16 +125,16 @@ async function loadStateForGuild(guildId) {
     }
 }
 
-async function updateUserScoreInDB(guildId, userId) {
+async function batchUpdateScoresInDB(guildId, userIds) {
+    if (!userIds || userIds.length === 0) return;
     try {
-        const state = getServerState(guildId);
-        state.leaderboard[userId] = (state.leaderboard[userId] || 0) + 1;
         await pool.query(`
-          INSERT INTO leaderboard (guild_id, user_id, score) VALUES ($1, $2, 1)
+          INSERT INTO leaderboard (guild_id, user_id, score)
+          SELECT $1, user_id, 1 FROM unnest($2::varchar[]) AS t(user_id)
           ON CONFLICT (guild_id, user_id) DO UPDATE SET score = leaderboard.score + 1;
-        `, [guildId, userId]);
+        `, [guildId, userIds]);
     } catch (error) {
-        console.error(`[DATABASE] Failed to update score for user ${userId} in guild ${guildId}:`, error);
+        console.error(`[DATABASE] Failed to batch update scores for ${userIds.length} users in guild ${guildId}:`, error);
     }
 }
 
@@ -203,20 +204,55 @@ async function saveQuestionToHistory(guildId, question) {
 const triviaPollSchema = { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, minItems: 4, maxItems: 4 }, correctAnswerIndex: { type: Type.INTEGER }, explanation: { type: Type.STRING } }, required: ["question", "options", "correctAnswerIndex", "explanation"] };
 const discussionPollSchema = { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, minItems: 2, maxItems: 4 } }, required: ["question", "options"] };
 
-// --- Gemini API Generation Functions (Now with Retry Logic & User Notifications) ---
-async function generateTriviaPoll(topic = '', history = [], channel = null) {
-    const historyInstruction = history.length > 0 ? `**To ensure variety, you MUST NOT create a poll about any of these recent topics:**\n- "${history.join('"\n- "')}"` : "";
-    const prompt = `You generate fun and engaging trivia polls about Artificial Intelligence for a general audience. The questions should be easy to understand (middle/high school level), interesting, and based on well-known AI facts or applications. Avoid overly simple questions like "What does AI stand for?". Good examples are: "Which company created ChatGPT?", "What everyday app uses AI for route navigation?", or "Which game was famously mastered by DeepMind’s AI?". ${topic ? `The poll must be about: **${topic}**.` : ''} ${historyInstruction} **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
+// --- Gemini API Generation Functions (Now with Centralized Retry Logic & User Notifications) ---
 
+/**
+ * A centralized handler for generating content from Gemini with robust retry logic.
+ * Designed for simple text generation tasks.
+ * @param {string} prompt The prompt to send to the AI.
+ * @param {string} generationType A label for logging purposes (e.g., 'weekly summary').
+ * @returns {Promise<string|null>} The generated text or null if all attempts fail.
+ */
+async function generateTextWithRetries(prompt, generationType = 'content') {
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+            return response.text.trim();
+        } catch (error) {
+            const isRetryable = error.message && (error.message.includes('503') || error.message.includes('500') || error.message.includes('429'));
+            if (isRetryable && attempt < MAX_RETRIES) {
+                const delay = Math.pow(2, attempt) * 500 + Math.floor(Math.random() * 500); // Shorter delay for non-critical tasks
+                console.warn(`[GEMINI][RETRY] ${generationType} generation failed on attempt ${attempt}/${MAX_RETRIES}. Retrying in ${Math.round(delay/1000)}s...`);
+                await new Promise(res => setTimeout(res, delay));
+            } else {
+                console.error(`[GEMINI] CRITICAL: Failed to generate ${generationType} after ${attempt} attempts.`, error);
+                return null;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * A centralized handler for generating structured JSON polls from Gemini with robust retry logic.
+ * Includes user-facing notifications on initial failure for scheduled posts.
+ * @param {string} prompt The prompt to send to the AI.
+ * @param {object} schema The response schema for the JSON output.
+ * @param {number} temperature The generation temperature.
+ * @param {import('discord.js').TextChannel|null} channel The channel to notify if the first attempt fails.
+ * @param {string} pollType A label for logging purposes (e.g., 'TRIVIA').
+ * @returns {Promise<object|null>} The parsed JSON poll data or null if all attempts fail.
+ */
+async function generatePollWithRetries(prompt, schema, temperature, channel = null, pollType = 'Poll') {
     const MAX_RETRIES = 4;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: triviaPollSchema, temperature: 0.9 }});
+            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema, temperature: temperature }});
             return JSON.parse(response.text.trim());
         } catch (error) {
             const isRetryable = error.message && (error.message.includes('503') || error.message.includes('500') || error.message.includes('429'));
             
-            // On the first failed attempt of a scheduled post, notify the channel there's a delay.
             if (isRetryable && attempt === 1 && channel) {
                 try {
                     await channel.send("apologies, but i seem to be having some connection issues with the AI at the moment. i'll keep trying in the background and will post today's poll as soon as i can!");
@@ -228,50 +264,30 @@ async function generateTriviaPoll(topic = '', history = [], channel = null) {
 
             if (isRetryable && attempt < MAX_RETRIES) {
                 const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 1000); // 2s, 4s, 8s + jitter
-                console.warn(`[GEMINI][RETRY] Trivia poll generation failed on attempt ${attempt}/${MAX_RETRIES}. Retrying in ${Math.round(delay/1000)}s...`);
+                console.warn(`[GEMINI][RETRY] ${pollType} poll generation failed on attempt ${attempt}/${MAX_RETRIES}. Retrying in ${Math.round(delay/1000)}s...`);
                 await new Promise(res => setTimeout(res, delay));
             } else {
-                console.error(`[GEMINI] CRITICAL: Failed to generate TRIVIA poll after ${attempt} attempts.`, error);
+                console.error(`[GEMINI] CRITICAL: Failed to generate ${pollType} poll after ${attempt} attempts.`, error);
                 return null;
             }
         }
     }
     return null; // Fallback in case loop finishes unexpectedly
+}
+
+async function generateTriviaPoll(topic = '', history = [], channel = null) {
+    const historyInstruction = history.length > 0 ? `**To ensure variety, you MUST NOT create a poll about any of these recent topics:**\n- "${history.join('"\n- "')}"` : "";
+    const prompt = `You generate fun and engaging trivia polls about Artificial Intelligence for a general audience. The questions should be easy to understand (middle/high school level), interesting, and based on well-known AI facts or applications. Avoid overly simple questions like "What does AI stand for?". Good examples are: "Which company created ChatGPT?", "What everyday app uses AI for route navigation?", or "Which game was famously mastered by DeepMind’s AI?". ${topic ? `The poll must be about: **${topic}**.` : ''} ${historyInstruction} **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
+
+    return generatePollWithRetries(prompt, triviaPollSchema, 0.9, channel, 'TRIVIA');
 }
 
 async function generateDiscussionPoll(channel = null) {
     const prompt = `You generate subjective, opinion-based polls about AI to spark community discussion. Good examples: "What AI Model do you primarily use?", "Will AI take over the world?". **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate poll based on schema.`;
     
-    const MAX_RETRIES = 4;
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        try {
-            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: discussionPollSchema, temperature: 1.0 }});
-            return JSON.parse(response.text.trim());
-        } catch (error) {
-            const isRetryable = error.message && (error.message.includes('503') || error.message.includes('500') || error.message.includes('429'));
-
-            // On the first failed attempt of a scheduled post, notify the channel there's a delay.
-            if (isRetryable && attempt === 1 && channel) {
-                try {
-                    await channel.send("apologies, but i seem to be having some connection issues with the AI at the moment. i'll keep trying in the background and will post today's poll as soon as i can!");
-                    console.log(`[GEMINI][NOTIFY] Notified channel #${channel.name} of a temporary API issue.`);
-                } catch (e) {
-                    console.error(`[GEMINI][NOTIFY] FAILED to send notification to channel #${channel.name}. Bot may lack permissions.`, e);
-                }
-            }
-
-            if (isRetryable && attempt < MAX_RETRIES) {
-                const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 1000); // 2s, 4s, 8s + jitter
-                console.warn(`[GEMINI][RETRY] Discussion poll generation failed on attempt ${attempt}/${MAX_RETRIES}. Retrying in ${Math.round(delay/1000)}s...`);
-                await new Promise(res => setTimeout(res, delay));
-            } else {
-                console.error(`[GEMINI] CRITICAL: Failed to generate DISCUSSION poll after ${attempt} attempts.`, error);
-                return null;
-            }
-        }
-    }
-    return null; // Fallback in case loop finishes unexpectedly
+    return generatePollWithRetries(prompt, discussionPollSchema, 1.0, channel, 'DISCUSSION');
 }
+
 
 // --- Poll Resolution Function ---
 async function resolveLastPoll(channel) {
@@ -288,47 +304,45 @@ async function resolveLastPoll(channel) {
 
     if (state.lastPollData && state.lastPollData.type === 'trivia' && state.lastPollData.pollMessageId) {
         const pollId = state.lastPollData.pollMessageId;
-        console.log(`[RESOLVE][${guildId}] Beginning resolution for previous trivia poll (ID: ${pollId}).`);
+        console.log(`[RESOLVE][${guildId}][#${channel.name}] Beginning resolution for previous trivia poll (ID: ${pollId}).`);
         try {
-            console.log(`[RESOLVE][${guildId}][Step 1/5] Fetching poll message...`);
             const pollMessage = await channel.messages.fetch(pollId);
-            console.log(`[RESOLVE][${guildId}][Step 1/5] SUCCESS: Poll message fetched.`);
-
-            console.log(`[RESOLVE][${guildId}][Step 2/5] Validating message is a poll...`);
             if (!pollMessage.poll) {
-                console.error(`[RESOLVE][${guildId}][Step 2/5] FAILED: Fetched message (ID: ${pollId}) is not a poll. Aborting resolution.`);
+                console.error(`[RESOLVE][${guildId}] FAILED: Fetched message (ID: ${pollId}) is not a poll. Aborting resolution.`);
                 return false;
             }
-            console.log(`[RESOLVE][${guildId}][Step 2/5] SUCCESS: Message is a valid poll.`);
 
-            console.log(`[RESOLVE][${guildId}][Step 3/5] Identifying correct answer and fetching voters...`);
             const correctAnswer = pollMessage.poll.answers.at(state.lastPollData.correctAnswerIndex);
             if (!correctAnswer) {
-                console.error(`[RESOLVE][${guildId}][Step 3/5] FAILED: Correct answer index (${state.lastPollData.correctAnswerIndex}) is out of bounds for poll (ID: ${pollId}). Aborting.`);
+                console.error(`[RESOLVE][${guildId}] FAILED: Correct answer index (${state.lastPollData.correctAnswerIndex}) is out of bounds for poll (ID: ${pollId}). Aborting.`);
                 return false;
             }
             const voters = await correctAnswer.fetchVoters();
-            console.log(`[RESOLVE][${guildId}][Step 3/5] SUCCESS: Found ${voters.size} voter(s) for the correct answer.`);
+            console.log(`[RESOLVE][${guildId}] Found ${voters.size} voter(s) for the correct answer.`);
 
-            console.log(`[RESOLVE][${guildId}][Step 4/5] Updating scores for winners...`);
-            let winners = [];
+            const winnerIds = [];
+            const winnerUsernames = [];
             for (const user of voters.values()) {
                 if (!user.bot) {
-                    await updateUserScoreInDB(guildId, user.id);
-                    winners.push(user.username);
+                    winnerIds.push(user.id);
+                    winnerUsernames.push(user.username);
                 }
             }
-            console.log(`[RESOLVE][${guildId}][Step 4/5] SUCCESS: Processed ${winners.length} winner(s).`);
 
-            console.log(`[RESOLVE][${guildId}][Step 5/5] Posting answer and summary...`);
+            if (winnerIds.length > 0) {
+                await batchUpdateScoresInDB(guildId, winnerIds);
+                winnerIds.forEach(userId => {
+                    state.leaderboard[userId] = (state.leaderboard[userId] || 0) + 1;
+                });
+            }
+
             const correctOptionLetter = String.fromCharCode(65 + state.lastPollData.correctAnswerIndex);
-            const answerEmbed = new EmbedBuilder().setColor('#5865F2').setTitle(`Yesterday's Poll Answer 🧐`).setDescription(`The correct answer to **"${state.lastPollData.question}"** was **${correctOptionLetter}: ${state.lastPollData.options[state.lastPollData.correctAnswerIndex]}**.\n\n${state.lastPollData.explanation}`).addFields({ name: 'Leaderboard Update', value: `**${winners.length}** member(s) answered correctly and have been awarded a point!` });
+            const answerEmbed = new EmbedBuilder().setColor('#5865F2').setTitle(`Yesterday's Poll Answer 🧐`).setDescription(`The correct answer to **"${state.lastPollData.question}"** was **${correctOptionLetter}: ${state.lastPollData.options[state.lastPollData.correctAnswerIndex]}**.\n\n${state.lastPollData.explanation}`).addFields({ name: 'Leaderboard Update', value: `**${winnerUsernames.length}** member(s) answered correctly and have been awarded a point!` });
             await channel.send({ embeds: [answerEmbed] });
-            console.log(`[RESOLVE][${guildId}][Step 5/5] SUCCESS: Answer posted.`);
-            console.log(`[RESOLVE][${guildId}] Poll resolution completed successfully.`);
+            console.log(`[RESOLVE][${guildId}][#${channel.name}] Poll resolution completed successfully.`);
             return true;
         } catch (error) {
-            let errorMessage = `[RESOLVE][${guildId}] FAILED: Could not process previous poll (ID: ${pollId}).`;
+            let errorMessage = `[RESOLVE][${guildId}][#${channel.name}] FAILED: Could not process previous poll (ID: ${pollId}).`;
             if (error.code === 10008) {
                 errorMessage += ` REASON: The message was likely DELETED. Use the \`!relinkpoll\` command to fix.`;
                 console.error(errorMessage);
@@ -342,19 +356,19 @@ async function resolveLastPoll(channel) {
             return false;
         }
     } else {
-        console.log(`[RESOLVE][${guildId}] No previous trivia poll found in state to resolve.`);
+        console.log(`[RESOLVE][${guildId}][#${channel.name}] No previous trivia poll found in state to resolve.`);
         return true; // Not a failure, just nothing to do.
     }
 }
 
 // --- Main Scheduled Post Function (Now accepts a catch-up flag) ---
 async function performDailyPost(channelId, isCatchUp = false) {
-    console.log(`[POLL] Starting daily post for channel: ${channelId}. Catch-up mode: ${isCatchUp}`);
     try {
         const channel = await discordClient.channels.fetch(channelId);
         if (!channel || !channel.guild) { console.error(`[POLL] Channel ${channelId} not found or is not in a server.`); return; }
         
         const guildId = channel.guild.id;
+        console.log(`[POLL][${guildId}][#${channel.name}] Starting daily post. Catch-up mode: ${isCatchUp}`);
         await loadStateForGuild(guildId); // Ensure state is loaded
         const state = getServerState(guildId);
         
@@ -381,17 +395,18 @@ async function performDailyPost(channelId, isCatchUp = false) {
                 pollIntroMessage = newPollData.type === 'discussion' ? "**Let's Discuss!** 🤔" : "**Today's AI Poll!** 🧠";
             }
 
-            const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false } });
+            const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
             newPollData.pollMessageId = newPollMessage.id;
             newPollData.createdAt = new Date().toISOString(); // Timestamp for catch-up logic
             
             state.lastPollData = newPollData;
             await saveStateToDB(guildId, 'lastPollData', newPollData);
             if (newPollData.type === 'trivia') await saveQuestionToHistory(guildId, newPollData.question);
+            console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
         } else {
             // The notification to the channel was already sent by the generation function on the first failure.
             // This log is for the server owner to know that all retries were exhausted.
-            console.error(`[POLL][Channel: ${channelId}] FINAL FAILURE: Could not generate a new poll from Gemini after all retries.`);
+            console.error(`[POLL][${guildId}][#${channel.name}] FINAL FAILURE: Could not generate a new poll from Gemini after all retries.`);
         }
     } catch (error) { console.error(`[POLL][Channel: ${channelId}] A critical error occurred during the daily post:`, error); }
 }
@@ -401,11 +416,15 @@ async function postWeeklySummary(channelId) {
         const channel = await discordClient.channels.fetch(channelId);
         if (!channel || !channel.guild) return;
         const guildId = channel.guild.id;
+        console.log(`[LEADERBOARD][${guildId}][#${channel.name}] Starting weekly summary post.`);
         await loadStateForGuild(guildId);
         const state = getServerState(guildId);
         const sortedUsers = Object.entries(state.leaderboard).sort(([, a], [, b]) => b - a);
 
-        if (sortedUsers.length === 0) return;
+        if (sortedUsers.length === 0) {
+            console.log(`[LEADERBOARD][${guildId}][#${channel.name}] No users on leaderboard. Skipping weekly summary.`);
+            return;
+        }
 
         let leaderboardString = "";
         for (let i = 0; i < Math.min(sortedUsers.length, 10); i++) {
@@ -417,9 +436,14 @@ async function postWeeklySummary(channelId) {
         }
         
         const prompt = `You are a fun and engaging Discord bot. Write a short, human-like summary for the end-of-week AI poll leaderboard. Here is the data:\n${leaderboardString}\nCongratulate the winner(s), mention some other top players, encourage everyone, and say you're excited for next week. Keep it concise and positive.`;
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-        const summaryEmbed = new EmbedBuilder().setColor('#FFD700').setTitle('🏆 Weekly Poll Report 🏆').setDescription(response.text).addFields({ name: 'Top 10 This Week', value: leaderboardString || 'No participants this week.' }).setFooter({ text: 'A new week of polls starts tomorrow!' });
+        const summaryText = await generateTextWithRetries(prompt, 'weekly summary');
+
+        // Graceful fallback: if AI fails, post a default message with the leaderboard data.
+        const description = summaryText || "Here's a look at this week's top contenders! Great job, everyone.";
+
+        const summaryEmbed = new EmbedBuilder().setColor('#FFD700').setTitle('🏆 Weekly Poll Report 🏆').setDescription(description).addFields({ name: 'Top 10 This Week', value: leaderboardString || 'No participants this week.' }).setFooter({ text: 'A new week of polls starts tomorrow!' });
         await channel.send({ embeds: [summaryEmbed] });
+        console.log(`[LEADERBOARD][${guildId}][#${channel.name}] Successfully posted weekly summary.`);
     } catch(error) { console.error(`[LEADERBOARD][Channel: ${channelId}] Failed to post weekly summary:`, error); }
 }
 
@@ -435,9 +459,9 @@ async function checkForMissedPolls() {
         hour12: false // Use 24-hour format for simplicity (00-23)
     }).format(now), 10);
 
-    // The poll is scheduled for 10 AM. If it's earlier than that in NY, no poll was missed today.
-    if (currentHourNY < 10) {
-        console.log(`[STARTUP] It is before 10 AM in New York (Current Hour: ${currentHourNY}). No scheduled polls should have been posted yet today.`);
+    // The poll is scheduled for 6 AM. If it's earlier than that in NY, no poll was missed today.
+    if (currentHourNY < 6) {
+        console.log(`[STARTUP] It is before 6 AM in New York (Current Hour: ${currentHourNY}). No scheduled polls should have been posted yet today.`);
         return;
     }
 
@@ -498,7 +522,7 @@ discordClient.once('ready', async () => {
   // Schedule future tasks for each target channel
   TARGET_CHANNEL_IDS.forEach(channelId => {
     // This is the normal, on-time schedule, so isCatchUp is false by default.
-    cron.schedule('0 10 * * *', () => performDailyPost(channelId), { scheduled: true, timezone: "America/New_York" });
+    cron.schedule('0 6 * * *', () => performDailyPost(channelId), { scheduled: true, timezone: "America/New_York" });
     cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId), { scheduled: true, timezone: "America/New_York" });
     console.log(`[SCHEDULER] Daily and weekly tasks scheduled for channel ${channelId}.`);
   });
@@ -537,9 +561,9 @@ discordClient.on('messageCreate', async (message) => {
             if (state.activeOnDemandPoll) { return message.reply("There's already an active on-demand poll in this server. Use `!reveal` to end it."); }
             const topic = args.join(' ');
             await message.channel.send(`On-demand trivia poll requested for topic "${topic || 'Any AI topic'}". Generating...`);
-            const pollData = await generateTriviaPoll(topic, []);
+            const pollData = await generateTriviaPoll(topic, [], message.channel);
             if (pollData) {
-                const pollMessage = await message.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollData.question }, answers: pollData.options.map(o => ({ text: o })), duration: 24, allowMultoselect: false } });
+                const pollMessage = await message.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollData.question }, answers: pollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
                 state.activeOnDemandPoll = { ...pollData, messageId: pollMessage.id };
                 await saveStateToDB(guildId, 'activeOnDemandPoll', state.activeOnDemandPoll);
             } else { await message.channel.send("Sorry, I couldn't generate a poll from the AI right now, it seems to be overloaded. Please try again in a few moments."); }
@@ -625,10 +649,9 @@ discordClient.on('messageCreate', async (message) => {
                 await message.channel.send("Relinking poll... This might take a moment while I generate a new explanation.");
                 
                 const explanationPrompt = `The trivia question is: "${question}". The correct answer is "${correctAnswerText}". Please provide a concise, engaging explanation for why this is the correct answer, suitable for a Discord poll bot.`;
-                const explanationResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: explanationPrompt });
-                const explanation = explanationResponse.text.trim();
+                const explanation = await generateTextWithRetries(explanationPrompt, 'relink explanation');
 
-                if (!explanation) { return message.reply("Sorry, I couldn't generate an explanation from the AI. The relink has been aborted."); }
+                if (!explanation) { return message.reply("Sorry, I couldn't generate an explanation from the AI right now, it seems to be overloaded. The relink has been aborted. Please try again in a few moments."); }
 
                 const newPollData = { question, options, correctAnswerIndex, explanation, type: 'trivia', pollMessageId: pollMessage.id, createdAt: pollMessage.createdAt.toISOString() };
 
