@@ -454,8 +454,12 @@ async function postWeeklySummary(channelId) {
  * @returns {string} The formatted date string (e.g., "2024-07-28").
  */
 function getNYDateString(date) {
+    // This check is redundant if we validate the date object *before* calling this,
+    // but it serves as a good safeguard.
     if (!date || !(date instanceof Date) || isNaN(date)) {
-        return 'invalid_date'; // Will not match a valid date, preventing false positives
+        // Return today's date string as a failsafe to prevent accidental double-posts
+        // if an invalid date somehow gets passed in.
+        return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     }
     const formatter = new Intl.DateTimeFormat('en-CA', { // 'en-CA' gives YYYY-MM-DD
         timeZone: 'America/New_York',
@@ -494,25 +498,39 @@ async function checkForMissedPolls() {
             await loadStateForGuild(guildId);
             const state = getServerState(guildId);
             
-            if (state.lastPollData && state.lastPollData.createdAt) {
-                const lastPostDate = new Date(state.lastPollData.createdAt);
-                
-                // --- Timezone-Safe Date Comparison ---
-                // By converting both 'now' and the last post time to a calendar date string
-                // in the target timezone, we ensure the check is 100% reliable against double-posts.
-                const todayNYString = getNYDateString(now);
-                const lastPostDateNYString = getNYDateString(lastPostDate);
+            // --- Defensive, Multi-Layered Poll Check ---
 
-                if (lastPostDateNYString < todayNYString) {
-                    console.log(`[STARTUP] Missed poll detected for channel ${channelId}. Last post was on ${lastPostDateNYString}, but today is ${todayNYString} in NY. Triggering catch-up.`);
-                    await performDailyPost(channelId, true);
-                } else {
-                    console.log(`[STARTUP] Poll for channel ${channelId} was already posted today (${lastPostDateNYString} in NY). No action needed.`);
-                }
-            } else {
+            // 1. Handle Case: No poll has ever been posted for this server.
+            if (!state.lastPollData) {
                 console.log(`[STARTUP] No previous poll data found for channel ${channelId}. Triggering initial post.`);
                 await performDailyPost(channelId, true);
+                return;
             }
+
+            // 2. Handle Case: Legacy poll data exists but without a timestamp.
+            if (!state.lastPollData.createdAt) {
+                console.warn(`[STARTUP] A previous poll exists for channel ${channelId} but is missing a timestamp (legacy data). Assuming it was posted today to prevent a double-post. No action needed.`);
+                return;
+            }
+            
+            // 3. Handle Case: Timestamp exists but is corrupted or invalid.
+            const lastPostDate = new Date(state.lastPollData.createdAt);
+            if (isNaN(lastPostDate)) {
+                console.warn(`[STARTUP] Invalid 'createdAt' timestamp found for last poll in channel ${channelId}. Value: "${state.lastPollData.createdAt}". Assuming poll was posted today to prevent double-post.`);
+                return;
+            }
+
+            // 4. Perform the reliable, timezone-safe date comparison.
+            const todayNYString = getNYDateString(now);
+            const lastPostDateNYString = getNYDateString(lastPostDate);
+
+            if (lastPostDateNYString !== todayNYString) {
+                console.log(`[STARTUP] Missed poll detected for channel ${channelId}. Last post was on ${lastPostDateNYString}, but today is ${todayNYString} in NY. Triggering catch-up.`);
+                await performDailyPost(channelId, true);
+            } else {
+                console.log(`[STARTUP] Poll for channel ${channelId} was already posted today (${lastPostDateNYString} in NY). No action needed.`);
+            }
+
         } catch (error) {
             console.error(`[STARTUP] CRITICAL ERROR during catch-up check for channel ${channelId}:`, error);
         }
