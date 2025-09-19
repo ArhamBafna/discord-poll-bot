@@ -447,19 +447,36 @@ async function postWeeklySummary(channelId) {
     } catch(error) { console.error(`[LEADERBOARD][Channel: ${channelId}] Failed to post weekly summary:`, error); }
 }
 
+/**
+ * A robust helper to get a date's calendar day string (YYYY-MM-DD) in the NY timezone.
+ * This prevents timezone-related bugs when comparing if a poll was posted 'today'.
+ * @param {Date} date The date object to format.
+ * @returns {string} The formatted date string (e.g., "2024-07-28").
+ */
+function getNYDateString(date) {
+    if (!date || !(date instanceof Date) || isNaN(date)) {
+        return 'invalid_date'; // Will not match a valid date, preventing false positives
+    }
+    const formatter = new Intl.DateTimeFormat('en-CA', { // 'en-CA' gives YYYY-MM-DD
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    return formatter.format(date);
+}
+
 async function checkForMissedPolls() {
     console.log('[STARTUP] Checking for any missed daily polls due to downtime...');
     const now = new Date();
     const nyTimezone = 'America/New_York';
 
-    // Get the current hour in New York using a reliable method.
     const currentHourNY = parseInt(new Intl.DateTimeFormat('en-US', {
         timeZone: nyTimezone,
         hour: '2-digit',
-        hour12: false // Use 24-hour format for simplicity (00-23)
+        hour12: false
     }).format(now), 10);
 
-    // The poll is scheduled for 6 AM. If it's earlier than that in NY, no poll was missed today.
     if (currentHourNY < 6) {
         console.log(`[STARTUP] It is before 6 AM in New York (Current Hour: ${currentHourNY}). No scheduled polls should have been posted yet today.`);
         return;
@@ -478,28 +495,21 @@ async function checkForMissedPolls() {
             const state = getServerState(guildId);
             
             if (state.lastPollData && state.lastPollData.createdAt) {
-                const lastPostDate = new Date(state.lastPollData.createdAt); // This is a UTC Date object
+                const lastPostDate = new Date(state.lastPollData.createdAt);
                 
-                // Reliably format both the current date and the last post date into YYYY-MM-DD strings *in the NY timezone*.
-                // This avoids all timezone conversion errors when comparing dates.
-                const formatter = new Intl.DateTimeFormat('en-CA', { // 'en-CA' gives the YYYY-MM-DD format
-                    timeZone: nyTimezone,
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit'
-                });
-
-                const todayNYString = formatter.format(now);
-                const lastPostDateNYString = formatter.format(lastPostDate);
+                // --- Timezone-Safe Date Comparison ---
+                // By converting both 'now' and the last post time to a calendar date string
+                // in the target timezone, we ensure the check is 100% reliable against double-posts.
+                const todayNYString = getNYDateString(now);
+                const lastPostDateNYString = getNYDateString(lastPostDate);
 
                 if (lastPostDateNYString < todayNYString) {
-                    console.log(`[STARTUP] Missed poll detected for channel ${channelId}. Last post was on ${lastPostDateNYString}, but today is ${todayNYString}. Triggering catch-up.`);
+                    console.log(`[STARTUP] Missed poll detected for channel ${channelId}. Last post was on ${lastPostDateNYString}, but today is ${todayNYString} in NY. Triggering catch-up.`);
                     await performDailyPost(channelId, true);
                 } else {
-                    console.log(`[STARTUP] Poll for channel ${channelId} was already posted today (${lastPostDateNYString}). No action needed.`);
+                    console.log(`[STARTUP] Poll for channel ${channelId} was already posted today (${lastPostDateNYString} in NY). No action needed.`);
                 }
             } else {
-                // This handles the very first run for a channel.
                 console.log(`[STARTUP] No previous poll data found for channel ${channelId}. Triggering initial post.`);
                 await performDailyPost(channelId, true);
             }
