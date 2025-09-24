@@ -39,8 +39,24 @@ if (!GEMINI_API_KEY || !DISCORD_BOT_TOKEN || !TARGET_CHANNEL_IDS.length || !DATA
   process.exit(1);
 }
 
+// --- Database Connection Sanitization ---
+// Some database providers (like Neon) add connection parameters that the pg library
+// does not support, causing crashes. This code safely removes the problematic parameter.
+let sanitizedDbUrl = DATABASE_URL;
+try {
+  const dbUrl = new URL(DATABASE_URL);
+  if (dbUrl.searchParams.has('transaction_timeout')) {
+    dbUrl.searchParams.delete('transaction_timeout');
+    sanitizedDbUrl = dbUrl.toString();
+    console.log('[DATABASE] Removed unsupported "transaction_timeout" parameter from DB connection string.');
+  }
+} catch (e) {
+  console.error('[DATABASE] Could not parse DATABASE_URL. Using it as is.', e);
+}
+
+
 // --- Initialize Database and Clients ---
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool({ connectionString: sanitizedDbUrl });
 const discordClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
