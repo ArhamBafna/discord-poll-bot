@@ -60,6 +60,31 @@ const pool = new Pool({ connectionString: sanitizedDbUrl });
 const discordClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
+// --- Fallback Polls (for API failures) ---
+const FALLBACK_POLLS = [
+    {
+        type: 'trivia',
+        question: "Which of these is NOT a recognized type of Machine Learning?",
+        options: ["Supervised Learning", "Unsupervised Learning", "Reinforcement Learning", "Subliminal Learning"],
+        correctAnswerIndex: 3,
+        explanation: "Subliminal Learning is not a recognized category of Machine Learning. The main types are Supervised (learning from labeled data), Unsupervised (finding patterns in unlabeled data), and Reinforcement (learning through trial and error with rewards)."
+    },
+    {
+        type: 'trivia',
+        question: "What does the 'Turing Test', proposed by Alan Turing, primarily evaluate in an AI?",
+        options: ["Its processing speed", "Its ability to exhibit human-like intelligence", "Its capacity to create art", "Its energy efficiency"],
+        correctAnswerIndex: 1,
+        explanation: "The Turing Test evaluates a machine's ability to exhibit intelligent behavior indistinguishable from that of a human. If a human evaluator cannot reliably tell the machine from a human in conversation, the machine is said to have passed the test."
+    },
+    {
+        type: 'trivia',
+        question: "What is the core function of a 'Neural Network' in modern AI?",
+        options: ["To store data like a database", "To cool the computer's central processor", "To mimic the human brain to recognize patterns", "To schedule automated IT tasks"],
+        correctAnswerIndex: 2,
+        explanation: "Neural Networks are computational models inspired by the human brain's structure. They are designed to recognize complex patterns in data, making them powerful tools for tasks like image recognition, natural language processing, and forecasting."
+    }
+];
+
 // --- State Management: In-memory cache for performance, keyed by Guild (Server) ID ---
 const serverStateCache = {};
 
@@ -295,7 +320,27 @@ async function generateTriviaPoll(topic = '', history = [], channel = null) {
     const historyInstruction = history.length > 0 ? `**To ensure variety, you MUST NOT create a poll about any of these recent topics:**\n- "${history.join('"\n- "')}"` : "";
     const prompt = `You generate fun and engaging trivia polls about Artificial Intelligence for a general audience. The questions should be easy to understand (middle/high school level), interesting, and based on well-known AI facts or applications. Avoid overly simple questions like "What does AI stand for?". Good examples are: "Which company created ChatGPT?", "What everyday app uses AI for route navigation?", or "Which game was famously mastered by DeepMind’s AI?". ${topic ? `The poll must be about: **${topic}**.` : ''} ${historyInstruction} **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
 
-    return generatePollWithRetries(prompt, triviaPollSchema, 0.9, channel, 'TRIVIA');
+    const normalizedHistory = new Set(history.map(q => q.toLowerCase().trim()));
+    const MAX_UNIQUE_ATTEMPTS = 5;
+
+    for (let attempt = 1; attempt <= MAX_UNIQUE_ATTEMPTS; attempt++) {
+        const pollData = await generatePollWithRetries(prompt, triviaPollSchema, 0.9, channel, 'TRIVIA');
+        if (!pollData) {
+            // Generation failed completely, so we can't continue.
+            return null;
+        }
+
+        const normalizedNewQuestion = pollData.question.toLowerCase().trim();
+        if (!normalizedHistory.has(normalizedNewQuestion)) {
+            // Found a unique question
+            return pollData;
+        }
+        
+        console.warn(`[GEMINI][UNIQUE] Generated a duplicate trivia question on attempt ${attempt}/${MAX_UNIQUE_ATTEMPTS}. Retrying for a unique one...`);
+    }
+
+    console.error(`[GEMINI] CRITICAL: Failed to generate a unique trivia poll after ${MAX_UNIQUE_ATTEMPTS} attempts. The AI may be returning repeated content.`);
+    return null;
 }
 
 async function generateDiscussionPoll(channel = null) {
@@ -377,7 +422,7 @@ async function resolveLastPoll(channel) {
     }
 }
 
-// --- Main Scheduled Post Function (Now accepts a catch-up flag) ---
+// --- Main Scheduled Post Function (Now with Fallback Logic) ---
 async function performDailyPost(channelId, isCatchUp = false) {
     try {
         const channel = await discordClient.channels.fetch(channelId);
@@ -391,24 +436,36 @@ async function performDailyPost(channelId, isCatchUp = false) {
         // --- Resolve Yesterday's Poll ---
         await resolveLastPoll(channel);
 
-        // --- Post Today's Poll ---
+        // --- Generate Today's Poll ---
         const dayOfWeek = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
         const isDiscussionDay = ['Tuesday', 'Friday'].includes(dayOfWeek);
         let questionHistory = [];
         if (!isDiscussionDay) {
-            const historyRes = await pool.query('SELECT question FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 25', [guildId]);
+            const historyRes = await pool.query('SELECT question FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50', [guildId]);
             questionHistory = historyRes.rows.map(row => row.question);
         }
         
-        const newPollData = isDiscussionDay ? await generateDiscussionPoll(channel) : await generateTriviaPoll('', questionHistory, channel);
+        let newPollData = isDiscussionDay ? await generateDiscussionPoll(channel) : await generateTriviaPoll('', questionHistory, channel);
+        
+        // --- Fallback System ---
+        if (!newPollData) {
+            // The user notification was already sent by the generator on its first failure.
+            console.warn(`[POLL][${guildId}][#${channel.name}] Gemini API failed after all retries. Deploying a fallback poll to ensure daily activity.`);
+            // Select a random fallback poll. Fallbacks are always trivia.
+            newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)] };
+        }
+
+        // --- Post Today's Poll ---
         if (newPollData) {
-            newPollData.type = isDiscussionDay ? 'discussion' : 'trivia';
+            // Determine the final poll type. If we used a fallback, it's always trivia.
+            const finalPollType = newPollData.type || 'trivia';
+            newPollData.type = finalPollType;
             
             let pollIntroMessage;
             if (isCatchUp) {
                 pollIntroMessage = "Oops, forgot to post the poll today! Here it is... 😅";
             } else {
-                pollIntroMessage = newPollData.type === 'discussion' ? "**Let's Discuss!** 🤔" : "**Today's AI Poll!** 🧠";
+                pollIntroMessage = finalPollType === 'discussion' ? "**Let's Discuss!** 🤔" : "**Today's AI Poll!** 🧠";
             }
 
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
@@ -420,9 +477,8 @@ async function performDailyPost(channelId, isCatchUp = false) {
             if (newPollData.type === 'trivia') await saveQuestionToHistory(guildId, newPollData.question);
             console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
         } else {
-            // The notification to the channel was already sent by the generation function on the first failure.
-            // This log is for the server owner to know that all retries were exhausted.
-            console.error(`[POLL][${guildId}][#${channel.name}] FINAL FAILURE: Could not generate a new poll from Gemini after all retries.`);
+             // This case should now be unreachable but is kept as a final safeguard.
+            console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not generate a poll from Gemini AND failed to use a fallback poll.`);
         }
     } catch (error) { console.error(`[POLL][Channel: ${channelId}] A critical error occurred during the daily post:`, error); }
 }
