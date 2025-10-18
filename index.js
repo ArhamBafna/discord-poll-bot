@@ -2,7 +2,7 @@
 
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 5.3 (Conversational AI & Scheduler Reliability Patch)
+// Version: 5.4 (Robust Login & Startup Diagnostics)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -979,7 +979,22 @@ discordClient.on('messageCreate', async (message) => {
 });
 
 // --- Start Health Check & Login ---
-// This starts the web server immediately to satisfy Render's health checks.
-keepAlive();
-// After the server is confirmed to be running, we log in to Discord.
-discordClient.login(DISCORD_BOT_TOKEN);
+async function startBot() {
+    // This starts the web server immediately to satisfy Render's health checks.
+    keepAlive();
+    
+    try {
+        console.log('[DISCORD] Attempting to log in...');
+        await discordClient.login(DISCORD_BOT_TOKEN);
+        // The 'ready' event listener will fire after this, which contains the "Logged in as..." message.
+    } catch (error) {
+        console.error('--- !!! DISCORD LOGIN FAILED !!! ---');
+        console.error('This is a critical error. The bot cannot start.');
+        console.error('REASON: The most common causes are an INVALID or EXPIRED bot token, or MISSING Gateway Intents in the Discord Developer Portal.');
+        console.error('Please double-check your DISCORD_BOT_TOKEN environment variable and ensure all necessary intents (Guilds, Guild Messages, Message Content) are enabled.');
+        console.error('Full Error Details:', error);
+        process.exit(1); // Exit because the bot is useless without a Discord connection.
+    }
+}
+
+startBot();
