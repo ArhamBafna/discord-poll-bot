@@ -2,7 +2,7 @@
 
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 5.4 (Robust Login & Startup Diagnostics)
+// Version: 5.5 (Login Timeout & Network Diagnostics)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -978,6 +978,33 @@ discordClient.on('messageCreate', async (message) => {
     }
 });
 
+/**
+ * Wraps the Discord client login in a promise that will time out.
+ * This prevents the application from hanging indefinitely on startup.
+ * @param {string} token The bot token.
+ * @param {number} timeoutMs The timeout in milliseconds.
+ * @returns {Promise<string>} A promise that resolves with the login success message or rejects on failure/timeout.
+ */
+function loginWithTimeout(token, timeoutMs = 30000) {
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            // This creates a custom error to be caught by our handler
+            reject(new Error('Login timed out'));
+        }, timeoutMs);
+
+        discordClient.login(token)
+            .then((result) => {
+                clearTimeout(timeout);
+                resolve(result);
+            })
+            .catch((error) => {
+                clearTimeout(timeout);
+                reject(error);
+            });
+    });
+}
+
+
 // --- Start Health Check & Login ---
 async function startBot() {
     // This starts the web server immediately to satisfy Render's health checks.
@@ -985,13 +1012,20 @@ async function startBot() {
     
     try {
         console.log('[DISCORD] Attempting to log in...');
-        await discordClient.login(DISCORD_BOT_TOKEN);
+        await loginWithTimeout(DISCORD_BOT_TOKEN, 30000); // Use the new timeout function
         // The 'ready' event listener will fire after this, which contains the "Logged in as..." message.
     } catch (error) {
         console.error('--- !!! DISCORD LOGIN FAILED !!! ---');
         console.error('This is a critical error. The bot cannot start.');
-        console.error('REASON: The most common causes are an INVALID or EXPIRED bot token, or MISSING Gateway Intents in the Discord Developer Portal.');
-        console.error('Please double-check your DISCORD_BOT_TOKEN environment variable and ensure all necessary intents (Guilds, Guild Messages, Message Content) are enabled.');
+        
+        if (error.message === 'Login timed out') {
+            console.error('REASON: The login process took longer than 30 seconds and was aborted.');
+            console.error('This usually indicates a network problem between the hosting service (Render) and Discord. Please try restarting the service. If the problem persists, check your hosting provider\'s status.');
+        } else {
+            console.error('REASON: The most common causes are an INVALID or EXPIRED bot token, or MISSING Gateway Intents in the Discord Developer Portal.');
+            console.error('Please double-check your DISCORD_BOT_TOKEN environment variable and ensure all necessary intents (Guilds, Guild Messages, Message Content) are enabled.');
+        }
+
         console.error('Full Error Details:', error);
         process.exit(1); // Exit because the bot is useless without a Discord connection.
     }
