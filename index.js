@@ -350,6 +350,76 @@ async function generateDiscussionPoll(channel = null) {
 }
 
 
+// --- Conversational AI Functions ---
+
+/**
+ * Builds a chronological conversation history by walking up a message's reply chain.
+ * @param {import('discord.js').Message} message The message that triggered the conversation.
+ * @returns {Promise<Array<Object>>} A history array formatted for the Gemini API.
+ */
+async function buildConversationHistory(message) {
+    const history = [];
+    let currentReference = message.reference;
+    
+    // Walk up the reply chain for context, max 10 messages deep
+    for (let i = 0; i < 10 && currentReference && currentReference.messageId; i++) {
+        try {
+            const referencedMessage = await message.channel.messages.fetch(currentReference.messageId);
+            
+            // We only care about messages from the user and the bot involved in this specific chain
+            if (referencedMessage.author.id === message.author.id || referencedMessage.author.id === discordClient.user.id) {
+                history.unshift({
+                    role: referencedMessage.author.id === discordClient.user.id ? 'model' : 'user',
+                    parts: [{ text: referencedMessage.content }]
+                });
+            } else {
+                // If we encounter a message from someone else, the direct conversation context is broken.
+                break;
+            }
+            
+            currentReference = referencedMessage.reference;
+        } catch {
+            // Stop if we can't fetch a message (e.g., deleted)
+            break;
+        }
+    }
+    return history;
+}
+
+
+/**
+ * Generates a conversational response using the Gemini Chat API.
+ * @param {Array<Object>} history The conversation history.
+ * @param {string} latestMessage The user's latest message.
+ * @returns {Promise<string|null>} The AI-generated response text, or a user-facing error message.
+ */
+async function generateConversationalResponse(history, latestMessage) {
+    try {
+        const chat = ai.chats.create({
+            model: 'gemini-2.5-flash',
+            history: history,
+            config: {
+                systemInstruction: "you are a friendly and helpful discord bot. you are having a casual, normal, human-like conversation. do not use any capital letters in your responses.",
+            }
+        });
+        
+        const response = await chat.sendMessage({ message: latestMessage });
+        return response.text.trim();
+
+    } catch (error) {
+        console.error('[GEMINI][CONVERSATION] An error occurred:', error.message);
+        if (error.response) console.error('[GEMINI][CONVERSATION] Response Body:', error.response.data);
+        
+        // Check for overload / rate limit errors
+        if (error.message && (error.message.includes('503') || error.message.includes('429') || error.message.toLowerCase().includes('overloaded'))) {
+            return "my servers are overloaded. please try again later.";
+        }
+        // Generic error
+        return "an error occurred processing your request. please try again later.";
+    }
+}
+
+
 // --- Poll Resolution Function ---
 async function resolveLastPoll(channel) {
     if (!channel || !channel.guild) {
@@ -476,6 +546,7 @@ async function performDailyPost(channelId, isCatchUp = false) {
             await saveStateToDB(guildId, 'lastPollData', newPollData);
             if (newPollData.type === 'trivia') await saveQuestionToHistory(guildId, newPollData.question);
             console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
+            console.log(`[STATE][${guildId}] Successfully saved lastPollData to DB for poll ID ${newPollData.pollMessageId}.`);
         } else {
              // This case should now be unreachable but is kept as a final safeguard.
             console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not generate a poll from Gemini AND failed to use a fallback poll.`);
@@ -642,7 +713,34 @@ discordClient.once('ready', async () => {
 // --- Command Handler (Now guild-aware AND with robust error handling) ---
 discordClient.on('messageCreate', async (message) => {
     try {
-        if (message.author.bot || !message.guild || !message.content.startsWith(COMMAND_PREFIX)) return;
+        if (message.author.bot || !message.guild) return;
+
+        // --- Conversational AI Logic ---
+        const isMentioned = message.mentions.has(discordClient.user.id);
+        let isReplyToBot = false;
+        if (message.reference && message.reference.messageId) {
+            // Fetch the replied-to message to confirm it was from the bot
+            const referencedMessage = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+            if (referencedMessage && referencedMessage.author.id === discordClient.user.id) {
+                isReplyToBot = true;
+            }
+        }
+
+        if ((isMentioned || isReplyToBot) && !message.content.startsWith(COMMAND_PREFIX)) {
+            await message.channel.sendTyping();
+            // Remove the bot's mention from the message content to avoid confusing the AI
+            const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
+            const history = await buildConversationHistory(message);
+            const responseText = await generateConversationalResponse(history, cleanContent);
+            if (responseText) {
+                // Force lowercase as per instructions and send as a direct reply
+                await message.reply(responseText.toLowerCase());
+            }
+            return; // Conversation handled, do not process as a command
+        }
+
+        // --- Command Logic ---
+        if (!message.content.startsWith(COMMAND_PREFIX)) return;
 
         const guildId = message.guild.id;
         const hasPermission = message.author.username === ALLOWED_USERNAME || message.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
