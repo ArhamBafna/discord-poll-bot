@@ -2,7 +2,7 @@
 
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 5.2 (Stability and Performance Patch)
+// Version: 5.3 (Conversational AI & Scheduler Reliability Patch)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
@@ -87,6 +87,7 @@ const FALLBACK_POLLS = [
 
 // --- State Management: In-memory cache for performance, keyed by Guild (Server) ID ---
 const serverStateCache = {};
+const postingLock = new Set(); // Prevents concurrent poll posting
 
 // --- Database Functions (Now all guild-aware and with error handling) ---
 async function initializeDatabase() {
@@ -492,8 +493,14 @@ async function resolveLastPoll(channel) {
     }
 }
 
-// --- Main Scheduled Post Function (Now with Fallback Logic) ---
+// --- Main Scheduled Post Function (Now with Fallback Logic & Race Condition Lock) ---
 async function performDailyPost(channelId, isCatchUp = false) {
+    if (postingLock.has(channelId)) {
+        console.warn(`[POLL][Channel: ${channelId}] Aborted post because another post operation is already in progress for this channel.`);
+        return;
+    }
+    postingLock.add(channelId);
+    console.log(`[POLL][Channel: ${channelId}] Lock acquired. Starting daily post routine.`);
     try {
         const channel = await discordClient.channels.fetch(channelId);
         if (!channel || !channel.guild) { console.error(`[POLL] Channel ${channelId} not found or is not in a server.`); return; }
@@ -551,7 +558,12 @@ async function performDailyPost(channelId, isCatchUp = false) {
              // This case should now be unreachable but is kept as a final safeguard.
             console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not generate a poll from Gemini AND failed to use a fallback poll.`);
         }
-    } catch (error) { console.error(`[POLL][Channel: ${channelId}] A critical error occurred during the daily post:`, error); }
+    } catch (error) { 
+        console.error(`[POLL][Channel: ${channelId}] A critical error occurred during the daily post:`, error);
+    } finally {
+        postingLock.delete(channelId);
+        console.log(`[POLL][Channel: ${channelId}] Lock released. Daily post routine finished.`);
+    }
 }
 
 async function postWeeklySummary(channelId) {
@@ -724,6 +736,11 @@ discordClient.on('messageCreate', async (message) => {
             if (referencedMessage && referencedMessage.author.id === discordClient.user.id) {
                 isReplyToBot = true;
             }
+        }
+
+        // --- NEW: Add logging to debug conversational triggers ---
+        if (isMentioned || isReplyToBot) {
+            console.log(`[CONVERSATION][${message.guild.id}] Trigger detected by user ${message.author.username}. Mention: ${isMentioned}, Reply: ${isReplyToBot}.`);
         }
 
         if ((isMentioned || isReplyToBot) && !message.content.startsWith(COMMAND_PREFIX)) {
