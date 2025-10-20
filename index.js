@@ -130,6 +130,14 @@ async function initializeDatabase() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS knowledge_base (
+        guild_id VARCHAR(255) NOT NULL,
+        key VARCHAR(255) NOT NULL,
+        value TEXT NOT NULL,
+        PRIMARY KEY (guild_id, key)
+      );
+    `);
     console.log('[DATABASE] All tables are set up for multi-server support.');
   } catch (error) {
     console.error('[DATABASE] CRITICAL ERROR: Failed to initialize database.', error);
@@ -146,6 +154,7 @@ function getServerState(guildId) {
             leaderboard: {},
             lastPollData: null,
             activeOnDemandPoll: null,
+            knowledgeBase: {},
         };
     }
     return serverStateCache[guildId];
@@ -170,6 +179,13 @@ async function loadStateForGuild(guildId) {
             if (row.key === 'lastPollData') state.lastPollData = row.value;
             if (row.key === 'activeOnDemandPoll') state.activeOnDemandPoll = row.value;
         }
+
+        const knowledgeRes = await client.query('SELECT key, value FROM knowledge_base WHERE guild_id = $1', [guildId]);
+        state.knowledgeBase = {};
+        knowledgeRes.rows.forEach(row => {
+            state.knowledgeBase[row.key] = row.value;
+        });
+
         console.log(`[STATE] State loaded for guild ${guildId}: lastPollData is ${state.lastPollData ? 'present' : 'null'}`);
     } catch (error) {
         console.error(`[STATE] CRITICAL ERROR loading state for server ${guildId}:`, error);
@@ -400,18 +416,57 @@ async function buildConversationHistory(message) {
 
 
 /**
- * Generates a conversational response using the Gemini Chat API.
+ * Generates a conversational response using the Gemini Chat API, with injected context.
  * @param {Array<Object>} history The conversation history.
  * @param {string} latestMessage The user's latest message.
+ * @param {string} guildId The ID of the server where the conversation is happening.
  * @returns {Promise<string|null>} The AI-generated response text, or a user-facing error message.
  */
-async function generateConversationalResponse(history, latestMessage) {
+async function generateConversationalResponse(history, latestMessage, guildId) {
     try {
+        // --- Context Injection ---
+        let context = "";
+        const state = getServerState(guildId);
+        const lowerCaseMessage = latestMessage.toLowerCase();
+
+        // 1. Leaderboard Context
+        if (lowerCaseMessage.includes('leaderboard') || lowerCaseMessage.includes('rank') || lowerCaseMessage.includes('points') || lowerCaseMessage.includes('score')) {
+            const sortedUsers = Object.entries(state.leaderboard).sort(([, a], [, b]) => b - a).slice(0, 10);
+            if (sortedUsers.length > 0) {
+                let leaderboardString = "Here is the current top of the leaderboard:\n";
+                for (let i = 0; i < sortedUsers.length; i++) {
+                    const [userId, score] = sortedUsers[i];
+                    try {
+                        const user = await discordClient.users.fetch(userId);
+                        leaderboardString += `${i + 1}. ${user.username} - ${score} points\n`;
+                    } catch { /* Skip users who couldn't be fetched */ }
+                }
+                context += `CONTEXT about the leaderboard:\n${leaderboardString}\n`;
+            } else {
+                context += "CONTEXT: The leaderboard for this server is currently empty.\n";
+            }
+        }
+
+        // 2. Knowledge Base Context (Always provide all learned info)
+        const knowledgeValues = Object.values(state.knowledgeBase);
+        if (knowledgeValues.length > 0) {
+            const knowledgeString = knowledgeValues.join('\n\n---\n\n'); // Join different facts with a separator
+            context += `CONTEXT about our server/organization/non-profit:\n${knowledgeString}\n`;
+        }
+
+        // 3. Construct Final System Instruction
+        const baseInstruction = "you are a unique bot named OWGT (short for OneWorldGreaterTogether). be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
+        let finalSystemInstruction = baseInstruction;
+        if (context) {
+            finalSystemInstruction += `\n\nIMPORTANT: Use the following context to answer the user's question. If the context is not relevant, ignore it. Do not mention the word 'context' in your response.\n\n${context}`;
+        }
+        // --- End Context Injection ---
+
         const chat = ai.chats.create({
             model: 'gemini-2.5-flash',
             history: history,
             config: {
-                systemInstruction: "you are a unique bot named OWGT (short for OneWorldGreaterTogether). be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.",
+                systemInstruction: finalSystemInstruction,
             }
         });
         
@@ -749,7 +804,6 @@ discordClient.on('messageCreate', async (message) => {
             }
         }
 
-        // --- NEW: Add logging to debug conversational triggers ---
         if (isMentioned || isReplyToBot) {
             console.log(`[CONVERSATION][${message.guild.id}] Trigger detected by user ${message.author.username}. Mention: ${isMentioned}, Reply: ${isReplyToBot}.`);
         }
@@ -759,7 +813,7 @@ discordClient.on('messageCreate', async (message) => {
             // Remove the bot's mention from the message content to avoid confusing the AI
             const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
             const history = await buildConversationHistory(message);
-            const responseText = await generateConversationalResponse(history, cleanContent);
+            const responseText = await generateConversationalResponse(history, cleanContent, message.guild.id);
             if (responseText) {
                 // Force lowercase as per instructions and send as a direct reply
                 await message.reply(responseText.toLowerCase());
