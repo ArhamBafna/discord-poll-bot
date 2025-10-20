@@ -425,15 +425,15 @@ async function buildConversationHistory(message) {
 async function generateConversationalResponse(history, latestMessage, guildId) {
     try {
         // --- Context Injection ---
-        let context = "";
         const state = getServerState(guildId);
         const lowerCaseMessage = latestMessage.toLowerCase();
+        const contextParts = [];
 
         // 1. Leaderboard Context
         if (lowerCaseMessage.includes('leaderboard') || lowerCaseMessage.includes('rank') || lowerCaseMessage.includes('points') || lowerCaseMessage.includes('score')) {
             const sortedUsers = Object.entries(state.leaderboard).sort(([, a], [, b]) => b - a).slice(0, 10);
             if (sortedUsers.length > 0) {
-                let leaderboardString = "Here is the current top of the leaderboard:\n";
+                let leaderboardString = "";
                 for (let i = 0; i < sortedUsers.length; i++) {
                     const [userId, score] = sortedUsers[i];
                     try {
@@ -441,24 +441,32 @@ async function generateConversationalResponse(history, latestMessage, guildId) {
                         leaderboardString += `${i + 1}. ${user.username} - ${score} points\n`;
                     } catch { /* Skip users who couldn't be fetched */ }
                 }
-                context += `CONTEXT about the leaderboard:\n${leaderboardString}\n`;
+                contextParts.push(`LEADERBOARD CONTEXT:\n${leaderboardString}`);
             } else {
-                context += "CONTEXT: The leaderboard for this server is currently empty.\n";
+                contextParts.push("LEADERBOARD CONTEXT: The leaderboard is currently empty.");
             }
         }
 
-        // 2. Knowledge Base Context (Always provide all learned info)
+        // 2. Knowledge Base Context
         const knowledgeValues = Object.values(state.knowledgeBase);
         if (knowledgeValues.length > 0) {
-            const knowledgeString = knowledgeValues.join('\n\n---\n\n'); // Join different facts with a separator
-            context += `CONTEXT about our server/organization/non-profit:\n${knowledgeString}\n`;
+            const knowledgeString = knowledgeValues.join('\n\n---\n\n');
+            contextParts.push(`ORGANIZATION KNOWLEDGE BASE:\n${knowledgeString}`);
         }
 
         // 3. Construct Final System Instruction
-        const baseInstruction = "you are a unique bot named OWGT (short for OneWorldGreaterTogether). be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
+        const baseInstruction = "you are a unique bot named OWGT (short for OneWorldGreaterTogether). be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. NEVER use the f word (f*ck) or the b word (b*tch)! the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
         let finalSystemInstruction = baseInstruction;
-        if (context) {
-            finalSystemInstruction += `\n\nIMPORTANT: Use the following context to answer the user's question. If the context is not relevant, ignore it. Do not mention the word 'context' in your response.\n\n${context}`;
+
+        if (contextParts.length > 0) {
+            const fullContext = contextParts.join('\n\n');
+            finalSystemInstruction += `\n\n---
+**CRITICAL INSTRUCTION FOR THIS RESPONSE:**
+You have been provided with specific background information. If the user's question relates to the topics in this information (like our organization or the leaderboard), you MUST prioritize this information to give an accurate answer. If the information is not relevant to the query, ignore it. Do not mention that you were given this context.
+---
+**BACKGROUND INFORMATION:**
+${fullContext}
+---`;
         }
         // --- End Context Injection ---
 
@@ -804,11 +812,14 @@ discordClient.on('messageCreate', async (message) => {
             }
         }
 
-        if (isMentioned || isReplyToBot) {
-            console.log(`[CONVERSATION][${message.guild.id}] Trigger detected by user ${message.author.username}. Mention: ${isMentioned}, Reply: ${isReplyToBot}.`);
-        }
-
         if ((isMentioned || isReplyToBot) && !message.content.startsWith(COMMAND_PREFIX)) {
+            console.log(`[CONVERSATION][${message.guild.id}] Trigger detected by user ${message.author.username}. Mention: ${isMentioned}, Reply: ${isReplyToBot}.`);
+            
+            // BUG FIX: Ensure state (including knowledge base) is loaded for conversational interactions.
+            if (!serverStateCache[message.guild.id]) {
+                await loadStateForGuild(message.guild.id);
+            }
+            
             await message.channel.sendTyping();
             // Remove the bot's mention from the message content to avoid confusing the AI
             const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
