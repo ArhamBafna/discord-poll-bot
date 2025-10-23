@@ -263,7 +263,7 @@ function shouldUseKB(message, guildState) {
     const knowledgeBase = guildState.knowledgeBase || {};
 
     // Layer 1: Quick-exact triggers
-    const explicitTriggers = ['policy', 'rules', 'procedure', 'guideline', 'role', 'mod', 'moderation', 'ban', 'appeal', 'server rules', 'setup', 'onboard', 'channel', 'faq', 'help center', 'knowledge base', 'kb', 'wiki', 'documentation', 'docs', 'contact', 'admin', 'staff', 'hours', 'schedule'];
+    const explicitTriggers = ['mission', 'team', 'owgt', 'rule', 'non-profit', 'nonprofit', 'organization', 'social media', 'tiktok', 'discord', 'youtube', 'website', 'about', 'integrate', 'help', 'knowledge base', 'cleanup', 'accomplishments', 'contact', 'admin'];
     if (explicitTriggers.some(trigger => content.includes(trigger))) return true;
     if (isQuestion && ['where is', 'where to', 'who to contact'].some(phrase => content.includes(phrase))) return true;
 
