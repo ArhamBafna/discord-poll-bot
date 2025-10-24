@@ -499,6 +499,21 @@ discordClient.on('messageCreate', async (message) => {
             const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
             const history = await buildConversationHistory(message);
             
+            // --- CONVERSATION CONTEXT & HISTORY VALIDATION ---
+            let promptForAI = cleanContent;
+            let chatHistoryForAI = history;
+
+            if (history.length > 0 && history[0].role === 'model') {
+                // This occurs when a user starts a conversation by replying to the bot.
+                // The Gemini API requires chat history to start with a 'user' turn.
+                // To preserve context, we merge the bot's message into the user's prompt
+                // and start a fresh chat history for the API call.
+                const botContext = history[0].parts[0].text;
+                promptForAI = `(The user is replying to your previous message, which said: "${botContext}")\n\nTheir new message is: "${cleanContent}"`;
+                chatHistoryForAI = []; // Start a new, valid history.
+                console.log('[CONV_HANDLER] Corrected invalid history by merging model context into prompt.');
+            }
+
             // --- Deterministic KB & Context Injection ---
             let finalSystemInstruction = "you are a unique bot made for a non-profit organization called OWGT (short for OneWorldGreaterTogether), and therefore, your name is OWGT Bot. you are not OWGT yourself, you are just its bot. be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. NEVER use the f word (f*ck) or the b word (b*tch)! the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
             if (shouldUseKB(message, state)) {
@@ -509,8 +524,8 @@ discordClient.on('messageCreate', async (message) => {
             }
             // --- End KB Injection ---
 
-            const chat = ai.chats.create({ model: 'gemini-2.5-flash', history: history, config: { systemInstruction: finalSystemInstruction }});
-            const result = await serviceHelpers.callWithRetries(() => chat.sendMessage({ message: cleanContent }), { serviceKey: 'gemini_chat' });
+            const chat = ai.chats.create({ model: 'gemini-2.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction }});
+            const result = await serviceHelpers.callWithRetries(() => chat.sendMessage({ message: promptForAI }), { serviceKey: 'gemini_chat' });
 
             if (result.status === 'success') {
                 await message.reply(result.data.text.trim().toLowerCase());
