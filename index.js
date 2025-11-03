@@ -70,9 +70,9 @@ try {
 
 // --- Fallback Polls (for API failures) ---
 const FALLBACK_POLLS = [
-    { type: 'trivia', question: "Which of these is NOT a recognized type of Machine Learning?", options: ["Supervised Learning", "Unsupervised Learning", "Reinforcement Learning", "Subliminal Learning"], correctAnswerIndex: 3, explanation: "Subliminal Learning is not a recognized category of Machine Learning. The main types are Supervised (learning from labeled data), Unsupervised (finding patterns in unlabeled data), and Reinforcement (learning through trial and error with rewards)." },
-    { type: 'trivia', question: "What does the 'Turing Test', proposed by Alan Turing, primarily evaluate in an AI?", options: ["Its processing speed", "Its ability to exhibit human-like intelligence", "Its capacity to create art", "Its energy efficiency"], correctAnswerIndex: 1, explanation: "The Turing Test evaluates a machine's ability to exhibit intelligent behavior indistinguishable from that of a human. If a human evaluator cannot reliably tell the machine from a human in conversation, the machine is said to have passed the test." },
-    { type: 'trivia', question: "What is the core function of a 'Neural Network' in modern AI?", options: ["To store data like a database", "To cool the computer's central processor", "To mimic the human brain to recognize patterns", "To schedule automated IT tasks"], correctAnswerIndex: 2, explanation: "Neural Networks are computational models inspired by the human brain's structure. They are designed to recognize complex patterns in data, making them powerful tools for tasks like image recognition, natural language processing, and forecasting." }
+    { type: 'trivia', question: "i lowk cant generate the poll today so go ahead:", options: ["wrong answer", "not right", "pick me right answer", "lebron"], correctAnswerIndex: 3, explanation: "right answer was c because... its obvious. if u didnt get that right u should just quit atp. btw, i love lebron. blah blah blah long response blah" },
+    { type: 'trivia', question: "how many fours make up six sevens and two?", options: ["11", "67", "41", "7"], correctAnswerIndex: 1, explanation: "To solve this, first, calculate the value of six sevens and two. Step 1: Multiply six by seven = 42. Step 2: Add two 42+2=44 Step 3: Determine how many fours are in the total. To find out how many fours make up 44, divide 44 by 4 = 11. Therefore, 11 fours make up six sevens and two." },
+    { type: 'trivia', question: "ai?", options: ["not ai", "ai", "not artificial intelligence", "option 5"], correctAnswerIndex: 2, explanation: "Neural Networks are computational models inspired by the human brain's structure. They are designed to recognize complex patterns in data, making them powerful tools for tasks like image recognition, natural language processing, and forecasting." }
 ];
 
 // --- State Management: In-memory cache for performance, keyed by Guild (Server) ID ---
@@ -191,7 +191,7 @@ async function generateTextWithRetries(prompt, serviceKey = 'gemini') {
 async function generatePollWithRetries(prompt, schema, temperature, serviceKey = 'gemini_poll') {
     const result = await serviceHelpers.callWithRetries(
       () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema, temperature: temperature }}),
-      { serviceKey }
+      { serviceKey, timeoutMs: 60000 } // Increased timeout for schema-based generation
     );
 
     if (result.status === 'success') {
@@ -206,8 +206,16 @@ async function generatePollWithRetries(prompt, schema, temperature, serviceKey =
 }
 
 async function generateTriviaPoll(topic = '', history = []) {
-    const historyInstruction = history.length > 0 ? `**To ensure variety, you MUST NOT create a poll about any of these recent topics:**\n- "${history.join('"\n- "')}"` : "";
-    const prompt = `You generate fun and engaging trivia polls about Artificial Intelligence for a general audience. The questions should be easy to understand (middle/high school level), interesting, and based on well-known AI facts or applications. Avoid overly simple questions like "What does AI stand for?". Good examples are: "Which company created ChatGPT?", "What everyday app uses AI for route navigation?", or "Which game was famously mastered by DeepMind’s AI?". ${topic ? `The poll must be about: **${topic}**.` : ''} ${historyInstruction} **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
+    const historyInstruction = history.length > 0 ? `Here is a list of recent questions to avoid repeating:\n- "${history.join('"\n- "')}"` : "";
+    const prompt = `You are an expert AI trivia poll creator. Your primary goal is to generate a NEW and UNIQUE trivia question about Artificial Intelligence for a general audience. The question must be interesting and based on well-known AI facts.
+
+**ABSOLUTE RULE: It is forbidden to generate a question that is the same as or very similar to any question in the history list provided below.** Do not rephrase or slightly modify past questions. Create something entirely new.
+
+${topic ? `The poll must be about: **${topic}**.` : ''}
+
+${historyInstruction}
+
+**CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
 
     const normalizedHistory = new Set(history.map(q => q.toLowerCase().trim()));
     const MAX_UNIQUE_ATTEMPTS = 5;
@@ -229,9 +237,34 @@ async function generateTriviaPoll(topic = '', history = []) {
     return { status: 'error', permanent: false, error: new Error('Failed to generate unique question') };
 }
 
-async function generateDiscussionPoll() {
-    const prompt = `You generate subjective, opinion-based polls about AI to spark community discussion. Good examples: "What AI Model do you primarily use?", "Will AI take over the world?". **CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate poll based on schema.`;
-    return generatePollWithRetries(prompt, discussionPollSchema, 1.0, 'gemini_discussion');
+async function generateDiscussionPoll(history = []) {
+    const historyInstruction = history.length > 0 ? `Here is a list of recent questions to avoid repeating:\n- "${history.join('"\n- "')}"` : "";
+    const prompt = `You are an expert AI discussion poll creator. Your goal is to generate a NEW and UNIQUE subjective, opinion-based poll about AI to spark community discussion. Good examples: "What AI Model do you primarily use?", "Will AI take over the world?".
+
+**ABSOLUTE RULE: It is forbidden to generate a question that is the same as or very similar to any question in the history list provided below.** Do not rephrase or slightly modify past questions. Create something entirely new.
+
+${historyInstruction}
+
+**CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
+
+    const normalizedHistory = new Set(history.map(q => q.toLowerCase().trim()));
+    const MAX_UNIQUE_ATTEMPTS = 5;
+
+    for (let attempt = 1; attempt <= MAX_UNIQUE_ATTEMPTS; attempt++) {
+        const pollResult = await generatePollWithRetries(prompt, discussionPollSchema, 1.0, 'gemini_discussion');
+        if (pollResult.status !== 'success') return pollResult; // Propagate failure up
+
+        const pollData = pollResult.data;
+        const normalizedNewQuestion = pollData.question.toLowerCase().trim();
+        if (!normalizedHistory.has(normalizedNewQuestion)) {
+            return { status: 'success', data: pollData }; // Found a unique question
+        }
+        
+        console.warn(`[GEMINI][UNIQUE] Generated a duplicate discussion question on attempt ${attempt}/${MAX_UNIQUE_ATTEMPTS}. Retrying for a unique one...`);
+    }
+
+    console.error(`[GEMINI] CRITICAL: Failed to generate a unique discussion poll after ${MAX_UNIQUE_ATTEMPTS} attempts.`);
+    return { status: 'error', permanent: false, error: new Error('Failed to generate unique question') };
 }
 
 
@@ -348,13 +381,12 @@ async function performDailyPost(channelId, isCatchUp = false) {
 
         const dayOfWeek = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
         const isDiscussionDay = ['Tuesday', 'Friday'].includes(dayOfWeek);
-        let questionHistory = [];
-        if (!isDiscussionDay) {
-            const historyRes = await pool.query('SELECT question FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50', [guildId]);
-            questionHistory = historyRes.rows.map(row => row.question);
-        }
         
-        let pollResult = isDiscussionDay ? await generateDiscussionPoll() : await generateTriviaPoll('', questionHistory);
+        // Fetch history for ALL poll types to prevent any repetition.
+        const historyRes = await pool.query('SELECT question FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50', [guildId]);
+        const questionHistory = historyRes.rows.map(row => row.question);
+        
+        let pollResult = isDiscussionDay ? await generateDiscussionPoll(questionHistory) : await generateTriviaPoll('', questionHistory);
         let newPollData;
         let usedFallback = false;
         
@@ -375,7 +407,7 @@ async function performDailyPost(channelId, isCatchUp = false) {
         }
 
         if (newPollData) {
-            const finalPollType = newPollData.type || 'trivia';
+            const finalPollType = newPollData.type || (isDiscussionDay ? 'discussion' : 'trivia');
             newPollData.type = finalPollType;
             let pollIntroMessage = isCatchUp ? "Oops, forgot to post the poll today! Here it is... 😅" : (finalPollType === 'discussion' ? "**Let's Discuss!** 🤔" : "**Today's AI Poll!** 🧠");
             if (usedFallback) pollIntroMessage += `\n*(posted using fallback because the AI service was unavailable)*`;
@@ -386,10 +418,12 @@ async function performDailyPost(channelId, isCatchUp = false) {
             
             state.lastPollData = newPollData;
             await saveStateToDB(guildId, 'lastPollData', newPollData);
-            if (!usedFallback) { // Only save real polls as "last successful"
+            
+            if (!usedFallback) { // Only save real polls as "last successful" and to history
                 await saveStateToDB(guildId, 'lastSuccessfulPoll', newPollData);
+                await saveQuestionToHistory(guildId, newPollData.question);
             }
-            if (newPollData.type === 'trivia') await saveQuestionToHistory(guildId, newPollData.question);
+            
             console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
         } else {
             console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not generate a poll from Gemini or use a fallback.`);
