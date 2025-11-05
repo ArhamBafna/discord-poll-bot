@@ -2,11 +2,11 @@
 
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 6.0 (Resilience & Deterministic KB)
+// Version: 7.0 (Slash Commands & Interactive KB)
 
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, Routes, REST, ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = require('discord.js');
 const { GoogleGenAI, Type } = require('@google/genai');
 const cron = require('node-cron');
 const { Pool } = require('pg');
@@ -30,7 +30,6 @@ const TARGET_CHANNEL_IDS = process.env.TARGET_CHANNEL_IDS ? process.env.TARGET_C
 const DATABASE_URL = process.env.DATABASE_URL;
 const ALLOWED_USERNAME = 'ar_him';
 const CONTROL_ROLE_NAME = 'bot-control';
-const COMMAND_PREFIX = '!';
 
 // --- Critical Environment Variable Check ---
 if (!GEMINI_API_KEY || !DISCORD_BOT_TOKEN || !TARGET_CHANNEL_IDS.length || !DATABASE_URL) {
@@ -152,6 +151,15 @@ async function admin_removeUserScore(guildId, userId, amount) {
         const res = await pool.query(`UPDATE leaderboard SET score = GREATEST(0, score - $1) WHERE guild_id = $2 AND user_id = $3 RETURNING score;`, [amount, guildId, userId]);
         return res.rows.length > 0 ? res.rows[0].score : 0;
     } catch (error) { console.error(`[DATABASE] Failed to remove score for user ${userId} in guild ${guildId}:`, error); return null; }
+}
+async function admin_saveKnowledgeBase(guildId, key, value) {
+    try {
+        await pool.query(`INSERT INTO knowledge_base (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;`, [guildId, key, value]);
+        return true;
+    } catch (error) {
+        console.error(`[DATABASE] Failed to save knowledge base for key '${key}' in guild ${guildId}:`, error);
+        return false;
+    }
 }
 async function saveStateToDB(guildId, key, value) {
     try {
@@ -369,7 +377,7 @@ async function resolveLastPoll(channel) {
             return true;
         } catch (error) {
             let errorMessage = `[RESOLVE][${guildId}][#${channel.name}] FAILED: Could not process previous poll (ID: ${pollId}).`;
-            if (error.code === 10008) errorMessage += ` REASON: Message was deleted. Use !relinkpoll.`;
+            if (error.code === 10008) errorMessage += ` REASON: Message was deleted. Use /relinkpoll.`;
             else if (error.code === 50013 || error.code === 50001) errorMessage += ` REASON: Missing Permissions.`;
             else errorMessage += ` REASON: Unexpected error.`;
             console.error(errorMessage, error.code !== 10008 ? error : '');
@@ -508,12 +516,56 @@ async function checkForMissedPolls() {
     console.log('[STARTUP] Missed poll check complete.');
 }
 
+// --- Define Slash Commands ---
+const commands = [
+  new SlashCommandBuilder().setName('leaderboard').setDescription('Displays the top 10 players on the server.'),
+  new SlashCommandBuilder().setName('rank').setDescription("Shows your rank or a mentioned user's rank.")
+    .addUserOption(option => option.setName('user').setDescription("The user to check the rank of (defaults to you).")),
+  new SlashCommandBuilder().setName('help').setDescription('Shows the help message with all available commands.'),
+  // Admin commands
+  new SlashCommandBuilder().setName('points').setDescription("Manually adjusts a user's score.")
+    .addSubcommand(sub => sub.setName('add').setDescription('Adds points to a user.')
+      .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
+      .addIntegerOption(option => option.setName('amount').setDescription('The number of points to add.').setRequired(true).setMinValue(1)))
+    .addSubcommand(sub => sub.setName('remove').setDescription('Removes points from a user.')
+      .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
+      .addIntegerOption(option => option.setName('amount').setDescription('The number of points to remove.').setRequired(true).setMinValue(1)))
+    .addSubcommand(sub => sub.setName('set').setDescription("Sets a user's points to an exact value.")
+      .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
+      .addIntegerOption(option => option.setName('amount').setDescription('The exact score to set.').setRequired(true).setMinValue(0))),
+  new SlashCommandBuilder().setName('asknow').setDescription('Starts an on-demand trivia poll (does not award points).')
+    .addStringOption(option => option.setName('topic').setDescription('An optional topic for the poll.')),
+  new SlashCommandBuilder().setName('reveal').setDescription('Reveals the answer for the active on-demand poll.'),
+  new SlashCommandBuilder().setName('postdaily').setDescription('Manually triggers the daily poll sequence.'),
+  new SlashCommandBuilder().setName('relinkpoll').setDescription("Fixes the bot's memory to track a poll that was deleted or missed.")
+    .addStringOption(option => option.setName('message_id').setDescription('The ID of the poll message.').setRequired(true))
+    .addIntegerOption(option => option.setName('correct_option').setDescription('The number of the correct option (e.g., 3 for C).').setRequired(true).setMinValue(1).setMaxValue(10)),
+  new SlashCommandBuilder().setName('resolve').setDescription('Manually resolves the last-known poll.'),
+  new SlashCommandBuilder().setName('update-knowledge').setDescription("Update the bot's knowledge base for answering questions.")
+].map(command => command.toJSON());
+
+const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
+
 
 // --- Bot Startup Logic ---
 discordClient.once('ready', async () => {
   console.log('--- Bot is starting up ---');
   await initializeDatabase();
   console.log(`Logged in as ${discordClient.user.tag}!`);
+
+  try {
+    console.log('[COMMANDS] Started refreshing application (/) commands.');
+    const guildIds = discordClient.guilds.cache.map(guild => guild.id);
+    for (const guildId of guildIds) {
+        await rest.put(
+            Routes.applicationGuildCommands(discordClient.user.id, guildId),
+            { body: commands },
+        );
+        console.log(`[COMMANDS] Successfully reloaded commands for guild ${guildId}.`);
+    }
+  } catch (error) {
+    console.error('[COMMANDS] Failed to reload application commands:', error);
+  }
 
   TARGET_CHANNEL_IDS.forEach(channelId => {
     cron.schedule('0 6 * * *', () => performDailyPost(channelId), { scheduled: true, timezone: "America/New_York" });
@@ -528,7 +580,7 @@ discordClient.once('ready', async () => {
   setTimeout(() => { checkForMissedPolls().catch(err => console.error("[STARTUP] Deferred poll check failed.", err)); }, 5000);
 });
 
-// --- Command Handler ---
+// --- Conversational AI Handler ---
 discordClient.on('messageCreate', async (message) => {
     try {
         if (message.author.bot || !message.guild) return;
@@ -541,7 +593,7 @@ discordClient.on('messageCreate', async (message) => {
         }
         message.isReplyToBot = isReplyToBot; // Attach for queue worker
 
-        if ((isMentioned || isReplyToBot) && !message.content.startsWith(COMMAND_PREFIX)) {
+        if (isMentioned || isReplyToBot) {
             if (!serverStateCache[message.guild.id]) await loadStateForGuild(message.guild.id);
             await message.channel.sendTyping();
             
@@ -650,45 +702,112 @@ discordClient.on('messageCreate', async (message) => {
             }
             return;
         }
+    } catch (error) {
+        console.error(`[CONV_HANDLER] Error processing message in guild ${message.guild?.id}:`, error);
+    }
+});
 
-        if (!message.content.startsWith(COMMAND_PREFIX)) return;
 
-        const guildId = message.guild.id;
-        const hasPermission = message.author.username === ALLOWED_USERNAME || message.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
-        const args = message.content.slice(COMMAND_PREFIX.length).trim().split(/ +/);
-        const command = args.shift().toLowerCase();
+// --- Slash Command & Interaction Handler ---
+discordClient.on('interactionCreate', async (interaction) => {
+    try {
+        // --- Modal Submit Handler ---
+        if (interaction.isModalSubmit()) {
+            if (interaction.customId === 'knowledgeBaseModal') {
+                const hasPermission = interaction.user.username === ALLOWED_USERNAME || interaction.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
+                if (!hasPermission) {
+                    return interaction.reply({ content: "You don't have permission to do this.", ephemeral: true });
+                }
+
+                const guildId = interaction.guild.id;
+                const knowledgeText = interaction.fields.getTextInputValue('knowledgeInput');
+                const success = await admin_saveKnowledgeBase(guildId, 'main-info', knowledgeText);
+                
+                if (success) {
+                    const state = getServerState(guildId);
+                    state.knowledgeBase['main-info'] = knowledgeText; // Update cache
+                    await interaction.reply({ content: '✅ Knowledge base has been updated successfully!', ephemeral: true });
+                } else {
+                    await interaction.reply({ content: '❌ A database error occurred while trying to update the knowledge base.', ephemeral: true });
+                }
+            }
+            return;
+        }
+
+        if (!interaction.isChatInputCommand()) return;
+        
+        const { commandName } = interaction;
+        const guildId = interaction.guild.id;
+        const hasPermission = interaction.user.username === ALLOWED_USERNAME || interaction.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
         
         if (!serverStateCache[guildId]) await loadStateForGuild(guildId);
         const state = getServerState(guildId);
 
-        // --- Commands ---
-        if (command === 'asknow' && hasPermission) {
-            if (state.activeOnDemandPoll) return message.reply("There's already an active on-demand poll. Use `!reveal` to end it.");
-            const topic = args.join(' ');
-            await message.channel.send(`On-demand trivia poll requested for topic "${topic || 'Any AI topic'}". Generating...`);
-            const pollResult = await generateTriviaPoll(topic, []);
-            if (pollResult.status === 'success') {
-                const pollMessage = await message.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollResult.data.question }, answers: pollResult.data.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
-                state.activeOnDemandPoll = { ...pollResult.data, messageId: pollMessage.id };
-                await saveStateToDB(guildId, 'activeOnDemandPoll', state.activeOnDemandPoll);
-            } else { await message.channel.send("i'm overloaded — please try again in a few minutes."); }
+        // --- User Commands ---
+        if (commandName === 'leaderboard' || commandName === 'rank') {
+            await interaction.deferReply();
+            const sortedUsers = Object.entries(state.leaderboard).sort(([,a],[,b]) => b - a);
+            if (sortedUsers.length === 0) return interaction.editReply('The leaderboard is empty!');
+
+            if (commandName === 'leaderboard') {
+                let description = '';
+                for (let i = 0; i < Math.min(sortedUsers.length, 10); i++) {
+                    try {
+                        const user = await discordClient.users.fetch(sortedUsers[i][0]);
+                        description += `**${i + 1}. ${user.username}** - ${sortedUsers[i][1]} points\n`;
+                    } catch { description += `**${i + 1}.** *Unknown User* - ${sortedUsers[i][1]} points\n`; }
+                }
+                await interaction.editReply({ embeds: [new EmbedBuilder().setColor('#F1C40F').setTitle(`🏆 Leaderboard for ${interaction.guild.name} 🏆`).setDescription(description)] });
+            } else {
+                const targetUser = interaction.options.getUser('user') || interaction.user;
+                const userRankIndex = sortedUsers.findIndex(([userId]) => userId === targetUser.id);
+                if (userRankIndex !== -1) {
+                    await interaction.editReply(`${targetUser.username}, you are rank **#${userRankIndex + 1}** with **${sortedUsers[userRankIndex][1]}** point(s).`);
+                } else { await interaction.editReply(`${targetUser.username}, you are not on the leaderboard yet.`); }
+            }
         }
 
-        if (command === 'reveal' && hasPermission) {
-            if (!state.activeOnDemandPoll) return message.reply("There is no active on-demand poll to reveal.");
+        if (commandName === 'help') {
+            const embed = new EmbedBuilder().setColor('#5865F2').setTitle('🤖 Bot Commands').setDescription('Here are the available commands:');
+            embed.addFields({ name: `/leaderboard`, value: 'Displays the top 10 players.' }, { name: `/rank [user]`, value: 'Shows your rank or a mentioned user\'s rank.' }, { name: `/help`, value: 'Shows this help message.' });
+            if (hasPermission) {
+                embed.addFields({ name: '--- Admin Commands ---', value: '\u200B' }, { name: `/points <add|remove|set> <user> <amount>`, value: 'Adjusts a user\'s points.'}, { name: `/update-knowledge`, value: "Opens a form to update the bot's knowledge base."}, { name: `/asknow [topic]`, value: 'Starts an on-demand poll.' }, { name: `/reveal`, value: 'Reveals the answer for the active poll.' }, { name: `/postdaily`, value: 'Manually triggers the daily poll sequence.' }, { name: `/relinkpoll <id> <option#>`, value: "Fixes the bot's memory to track a poll." }, { name: `/resolve`, value: "Manually resolves the last-known poll." });
+            }
+            await interaction.reply({ embeds: [embed] });
+        }
+
+        // --- Admin Commands ---
+        if (!hasPermission && ['points', 'asknow', 'reveal', 'postdaily', 'relinkpoll', 'resolve', 'update-knowledge'].includes(commandName)) {
+            return interaction.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        }
+
+        if (commandName === 'asknow') {
+            if (state.activeOnDemandPoll) return interaction.reply({ content: "There's already an active on-demand poll. Use `/reveal` to end it.", ephemeral: true });
+            const topic = interaction.options.getString('topic') || '';
+            await interaction.reply(`On-demand trivia poll requested for topic "${topic || 'Any AI topic'}". Generating...`);
+            const pollResult = await generateTriviaPoll(topic, []);
+            if (pollResult.status === 'success') {
+                const pollMessage = await interaction.channel.send({ content: `**Special On-Demand Poll!** ✨`, poll: { question: { text: pollResult.data.question }, answers: pollResult.data.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
+                state.activeOnDemandPoll = { ...pollResult.data, messageId: pollMessage.id };
+                await saveStateToDB(guildId, 'activeOnDemandPoll', state.activeOnDemandPoll);
+                await interaction.editReply("Poll generated successfully!");
+            } else { await interaction.editReply("i'm overloaded — please try again in a few minutes."); }
+        }
+
+        if (commandName === 'reveal') {
+            if (!state.activeOnDemandPoll) return interaction.reply({ content: "There is no active on-demand poll to reveal.", ephemeral: true });
             const pollData = state.activeOnDemandPoll;
             const correctOptionLetter = String.fromCharCode(65 + pollData.correctAnswerIndex);
             const answerEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle('Answer & Explanation 🧐').setDescription(`**Q: ${pollData.question}**`).addFields({ name: 'Correct Answer', value: `**${correctOptionLetter}: ${pollData.options[pollData.correctAnswerIndex]}**` }, { name: 'Explanation', value: pollData.explanation }).setFooter({text: 'On-demand polls do not award points.'});
-            await message.channel.send({ embeds: [answerEmbed] });
+            await interaction.reply({ embeds: [answerEmbed] });
             state.activeOnDemandPoll = null;
             await deleteStateFromDB(guildId, 'activeOnDemandPoll');
         }
-        
-        if (command === 'points' && hasPermission) {
-            const subCommand = args.shift()?.toLowerCase();
-            const targetUser = message.mentions.users.first();
-            const amount = parseInt(args[1], 10);
-            if (!['add', 'remove', 'set'].includes(subCommand) || !targetUser || isNaN(amount) || amount < 0) return message.reply('Usage: `!points <add|remove|set> <@user> <amount>`');
+
+        if (commandName === 'points') {
+            const subCommand = interaction.options.getSubcommand();
+            const targetUser = interaction.options.getUser('user');
+            const amount = interaction.options.getInteger('amount');
             
             let newScore = null;
             if (subCommand === 'add') newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'add');
@@ -697,19 +816,19 @@ discordClient.on('messageCreate', async (message) => {
             
             if (newScore !== null) {
                 state.leaderboard[targetUser.id] = newScore;
-                await message.reply(`Success! **${targetUser.username}**'s score is now **${newScore}**.`);
-            } else { await message.reply('A database error occurred.'); }
+                await interaction.reply(`Success! **${targetUser.username}**'s score is now **${newScore}**.`);
+            } else { await interaction.reply({ content: 'A database error occurred.', ephemeral: true }); }
         }
-        
-        if (command === 'relinkpoll' && hasPermission) {
-            const messageId = args[0];
-            const correctOptionNumber = parseInt(args[1], 10);
-            if (!messageId || !/^\d+$/.test(messageId) || isNaN(correctOptionNumber) || correctOptionNumber < 1 || correctOptionNumber > 10) return message.reply("Usage: `!relinkpoll <message_id> <correct_option_#>`");
+
+        if (commandName === 'relinkpoll') {
+            await interaction.deferReply({ ephemeral: true });
+            const messageId = interaction.options.getString('message_id');
+            const correctOptionNumber = interaction.options.getInteger('correct_option');
             const correctAnswerIndex = correctOptionNumber - 1;
 
             try {
-                const pollMessage = await message.channel.messages.fetch(messageId);
-                if (!pollMessage.poll || correctAnswerIndex >= pollMessage.poll.answers.length) return message.reply("Invalid message ID or option number.");
+                const pollMessage = await interaction.channel.messages.fetch(messageId);
+                if (!pollMessage.poll || correctAnswerIndex >= pollMessage.poll.answers.length) return interaction.editReply("Invalid message ID or option number.");
                 
                 const question = pollMessage.poll.question.text;
                 const options = pollMessage.poll.answers.map(a => a.text);
@@ -718,63 +837,60 @@ discordClient.on('messageCreate', async (message) => {
                 const explanationPrompt = `The trivia question is: "${question}". The correct answer is "${correctAnswerText}". Please provide a concise, engaging explanation for why this is the correct answer.`;
                 const explanation = await generateTextWithRetries(explanationPrompt, 'gemini_relink');
 
-                if (!explanation) return message.reply("Sorry, the AI is overloaded. The relink has been aborted.");
+                if (!explanation) return interaction.editReply("Sorry, the AI is overloaded. The relink has been aborted.");
                 const newPollData = { question, options, correctAnswerIndex, explanation, type: 'trivia', pollMessageId: pollMessage.id, createdAt: pollMessage.createdAt.toISOString() };
                 state.lastPollData = newPollData;
                 await saveStateToDB(guildId, 'lastPollData', newPollData);
-                await message.channel.send({ embeds: [new EmbedBuilder().setColor('#2ECC71').setTitle('✅ Poll Relink Successful').setDescription(`Relinked to poll: *${question}*`).setFooter({ text: "Use !resolve to process this poll." })] });
-            } catch (fetchError) { return message.reply("I couldn't find a message with that ID in this channel."); }
-        }
-
-        if (command === 'resolve' && hasPermission) {
-            if (!state.lastPollData) return message.reply("There is no poll in memory to resolve.");
-            await message.reply("Manually resolving the last known poll...");
-            if (await resolveLastPoll(message.channel)) {
-                state.lastPollData = null;
-                await deleteStateFromDB(guildId, 'lastPollData');
-                await message.channel.send("✅ Last poll has been resolved and cleared from memory.");
-            } else { await message.channel.send("❌ Something went wrong during resolution. Check logs."); }
-        }
-
-        if (command === 'postdaily' && hasPermission) {
-            await message.reply("Manually triggering the daily poll process...");
-            await performDailyPost(message.channel.id, true);
+                await interaction.editReply({ embeds: [new EmbedBuilder().setColor('#2ECC71').setTitle('✅ Poll Relink Successful').setDescription(`Relinked to poll: *${question}*`).setFooter({ text: "Use /resolve to process this poll." })] });
+            } catch (fetchError) { return interaction.editReply("I couldn't find a message with that ID in this channel."); }
         }
         
-        if (command === 'leaderboard' || command === 'rank') {
-            const sortedUsers = Object.entries(state.leaderboard).sort(([,a],[,b]) => b - a);
-            if (sortedUsers.length === 0) return message.channel.send('The leaderboard is empty!');
-            if (command === 'leaderboard') {
-                let description = '';
-                for (let i = 0; i < Math.min(sortedUsers.length, 10); i++) {
-                    try {
-                        const user = await discordClient.users.fetch(sortedUsers[i][0]);
-                        description += `**${i + 1}. ${user.username}** - ${sortedUsers[i][1]} points\n`;
-                    } catch { description += `**${i + 1}.** *Unknown User* - ${sortedUsers[i][1]} points\n`; }
-                }
-                await message.channel.send({ embeds: [new EmbedBuilder().setColor('#F1C40F').setTitle(`🏆 Leaderboard for ${message.guild.name} 🏆`).setDescription(description)] });
-            } else {
-                const targetUser = message.mentions.users.first() || message.author;
-                const userRankIndex = sortedUsers.findIndex(([userId]) => userId === targetUser.id);
-                if (userRankIndex !== -1) {
-                    await message.channel.send(`${targetUser.username}, you are rank **#${userRankIndex + 1}** with **${sortedUsers[userRankIndex][1]}** point(s).`);
-                } else { await message.channel.send(`${targetUser.username}, you are not on the leaderboard yet.`); }
-            }
+        if (commandName === 'resolve') {
+            if (!state.lastPollData) return interaction.reply({ content: "There is no poll in memory to resolve.", ephemeral: true });
+            await interaction.reply("Manually resolving the last known poll...");
+            if (await resolveLastPoll(interaction.channel)) {
+                state.lastPollData = null;
+                await deleteStateFromDB(guildId, 'lastPollData');
+                await interaction.followUp("✅ Last poll has been resolved and cleared from memory.");
+            } else { await interaction.followUp("❌ Something went wrong during resolution. Check logs."); }
         }
 
-        if (command === 'help') {
-            const embed = new EmbedBuilder().setColor('#5865F2').setTitle('🤖 Bot Commands').setDescription('Here are the available commands:');
-            embed.addFields({ name: `${COMMAND_PREFIX}leaderboard`, value: 'Displays the top 10 players.' }, { name: `${COMMAND_PREFIX}rank [@user]`, value: 'Shows your rank or a mentioned user\'s rank.' }, { name: `${COMMAND_PREFIX}help`, value: 'Shows this help message.' });
-            if (hasPermission) {
-                embed.addFields({ name: '--- Admin Commands ---', value: '\u200B' }, { name: `${COMMAND_PREFIX}points <add|remove|set> <@user> <amount>`, value: 'Adjusts a user\'s points.'}, { name: `${COMMAND_PREFIX}asknow [topic]`, value: 'Starts an on-demand poll.' }, { name: `${COMMAND_PREFIX}reveal`, value: 'Reveals the answer for the active poll.' }, { name: `${COMMAND_PREFIX}postdaily`, value: 'Manually triggers the daily poll sequence.' }, { name: `${COMMAND_PREFIX}relinkpoll <id> <option#>`, value: "Fixes the bot's memory to track a poll." }, { name: `${COMMAND_PREFIX}resolve`, value: "Manually resolves the last-known poll." });
-            }
-            await message.channel.send({ embeds: [embed] });
+        if (commandName === 'postdaily') {
+            await interaction.reply("Manually triggering the daily poll process...");
+            await performDailyPost(interaction.channel.id, true);
         }
+
+        if (commandName === 'update-knowledge') {
+            await loadStateForGuild(interaction.guild.id); // ensure KB is loaded
+            const currentKnowledge = state.knowledgeBase['main-info'] || 'Enter your organization\'s information here.';
+
+            const modal = new ModalBuilder()
+                .setCustomId('knowledgeBaseModal')
+                .setTitle('Update Knowledge Base');
+            const knowledgeInput = new TextInputBuilder()
+                .setCustomId('knowledgeInput')
+                .setLabel("What should the bot know about your organization?")
+                .setStyle(TextInputStyle.Paragraph)
+                .setValue(currentKnowledge)
+                .setPlaceholder('- Our mission is to...\n- We were founded in...')
+                .setRequired(true);
+            const actionRow = new ActionRowBuilder().addComponents(knowledgeInput);
+            modal.addComponents(actionRow);
+            await interaction.showModal(modal);
+        }
+
     } catch (error) {
-        console.error(`[COMMAND_HANDLER] Error processing command in guild ${message.guild?.id}:`, error);
-        try { await message.reply("Oops! Something went wrong. The incident has been logged."); } catch (replyError) { console.error(`[COMMAND_HANDLER] CRITICAL: Failed to send error reply.`, replyError); }
+        console.error(`[COMMAND_HANDLER] Error processing interaction in guild ${interaction.guild?.id}:`, error);
+        try {
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: "Oops! Something went wrong while executing this command.", ephemeral: true });
+            } else {
+                await interaction.reply({ content: "Oops! Something went wrong while executing this command.", ephemeral: true });
+            }
+        } catch (replyError) { console.error(`[COMMAND_HANDLER] CRITICAL: Failed to send error reply.`, replyError); }
     }
 });
+
 
 function loginWithTimeout(token, timeoutMs = 30000) {
     return new Promise((resolve, reject) => {
