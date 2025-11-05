@@ -861,7 +861,6 @@ discordClient.on('interactionCreate', async (interaction) => {
         }
 
         if (commandName === 'update-knowledge') {
-            await loadStateForGuild(interaction.guild.id); // ensure KB is loaded
             const currentKnowledge = state.knowledgeBase['main-info'] || 'Enter your organization\'s information here.';
 
             const modal = new ModalBuilder()
