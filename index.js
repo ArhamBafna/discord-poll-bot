@@ -295,8 +295,24 @@ function shouldUseKB(message, guildState) {
     const isQuestion = /^(who|what|where|when|how|why|which)\b/i.test(content);
     const knowledgeBase = guildState.knowledgeBase || {};
 
-    // Layer 1: Quick-exact triggers
-    const explicitTriggers = ['mission', 'team', 'owgt', 'rule', 'non-profit', 'nonprofit', 'organization', 'social media', 'tiktok', 'discord', 'youtube', 'website', 'about', 'integrate', 'help', 'knowledge base', 'cleanup', 'accomplishments', 'contact', 'admin'];
+    // Layer 1: Comprehensive keyword triggers based on known KB content
+    const explicitTriggers = [
+        // Org Identity
+        'mission', 'team', 'owgt', 'rule', 'non-profit', 'nonprofit', 'organization',
+        'about', 'who are you', 'what is this', 'vision', 'founder', 'creator',
+        // People
+        'artham', 'panshul', 'aniketh', 'yuvi', 'ashwin', 'tunuj', 'ashrith', 'ar_him',
+        // Activities
+        'workshop', 'event', 'competition', 'hackathon', 'cleanup', 'water bottle',
+        'woodrow wilson', 'edison',
+        // Topics
+        'healthcare', 'environment', 'business', 'empowerment',
+        // Socials / Links
+        'social media', 'tiktok', 'discord', 'youtube', 'website', 'link',
+        // Meta
+        'accomplishments', 'contact', 'admin', 'get involved', 'support', 'join',
+        'knowledge base', 'help'
+    ];
     if (explicitTriggers.some(trigger => content.includes(trigger))) return true;
     if (isQuestion && ['where is', 'where to', 'who to contact'].some(phrase => content.includes(phrase))) return true;
 
@@ -538,25 +554,86 @@ discordClient.on('messageCreate', async (message) => {
             let chatHistoryForAI = history;
 
             if (history.length > 0 && history[0].role === 'model') {
-                // This occurs when a user starts a conversation by replying to the bot.
-                // The Gemini API requires chat history to start with a 'user' turn.
-                // To preserve context, we merge the bot's message into the user's prompt
-                // and start a fresh chat history for the API call.
                 const botContext = history[0].parts[0].text;
                 promptForAI = `(The user is replying to your previous message, which said: "${botContext}")\n\nTheir new message is: "${cleanContent}"`;
-                chatHistoryForAI = []; // Start a new, valid history.
+                chatHistoryForAI = [];
                 console.log('[CONV_HANDLER] Corrected invalid history by merging model context into prompt.');
             }
 
-            // --- Deterministic KB & Context Injection ---
-            let finalSystemInstruction = "you are a unique bot made for a non-profit organization called OWGT (short for OneWorldGreaterTogether), and therefore, your name is OWGT Bot. you are not OWGT yourself, you are just its bot. be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. NEVER use the f word (f*ck) or the b word (b*tch)! the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
-            if (shouldUseKB(message, state)) {
-                const kbString = Object.entries(state.knowledgeBase).map(([key, value]) => `Topic: ${key.replace(/_/g, ' ')}\n${value}`).join('\n---\n').substring(0, 1200);
-                if (kbString) {
-                    finalSystemInstruction += `\n\nCRITICAL: The following knowledge base entries are authoritative for this server. If the user's question explicitly relates to these topics, use EXACTLY this information and do not contradict it. Do not mention you were given this data.\n\nKNOWLEDGE BASE:\n${kbString}\nEND KB.`;
+            // --- DYNAMIC CONTEXT INJECTION & SYSTEM PROMPT ---
+            let injectedContext = "";
+            const lowerContent = cleanContent.toLowerCase();
+
+            const contextKeywords = {
+                leaderboard: ['leaderboard', 'top players', 'scores', 'points', 'ranking', 'rank'],
+                rank: ['rank', 'my score', 'my points', 'my rank'],
+                poll: ['poll', 'daily question', 'today\'s question', 'yesterday\'s poll']
+            };
+
+            const requiresLeaderboard = contextKeywords.leaderboard.some(k => lowerContent.includes(k));
+            const requiresRank = contextKeywords.rank.some(k => lowerContent.includes(k));
+            const requiresPoll = contextKeywords.poll.some(k => lowerContent.includes(k));
+            
+            if (requiresLeaderboard) {
+                const sortedUsers = Object.entries(state.leaderboard).sort(([, a], [, b]) => b - a);
+                if (sortedUsers.length > 0) {
+                    let leaderboardString = "Current Leaderboard Top 10:\n";
+                    const topTen = sortedUsers.slice(0, 10);
+                    for (const [userId, score] of topTen) {
+                        try {
+                            const user = await discordClient.users.fetch(userId);
+                            leaderboardString += `- ${user.username}: ${score} points\n`;
+                        } catch {
+                            leaderboardString += `- UnknownUser: ${score} points\n`;
+                        }
+                    }
+                    injectedContext += `\n\nLEADERBOARD DATA:\n${leaderboardString}`;
+                } else {
+                    injectedContext += `\n\nLEADERBOARD DATA:\nThe leaderboard is currently empty.`;
                 }
             }
-            // --- End KB Injection ---
+            
+            if (requiresRank) {
+                const targetUser = message.author;
+                const sortedUsers = Object.entries(state.leaderboard).sort(([, a], [, b]) => b - a);
+                const userRankIndex = sortedUsers.findIndex(([userId]) => userId === targetUser.id);
+                if (userRankIndex !== -1) {
+                    injectedContext += `\n\nUSER RANK DATA:\nThe user asking (${targetUser.username}) is currently rank #${userRankIndex + 1} with ${sortedUsers[userRankIndex][1]} point(s).`;
+                } else {
+                    injectedContext += `\n\nUSER RANK DATA:\nThe user asking (${targetUser.username}) is not on the leaderboard yet.`;
+                }
+            }
+
+            if (requiresPoll) {
+                if (state.lastPollData) {
+                    injectedContext += `\n\nCURRENT POLL DATA:\nThe last poll question asked was: "${state.lastPollData.question}" with these options: ${state.lastPollData.options.join(', ')}.`;
+                    if (state.lastPollData.type === 'trivia') {
+                        injectedContext += ` The answer has not been revealed yet.`;
+                    }
+                } else {
+                    injectedContext += `\n\nCURRENT POLL DATA:\nThere is no active poll information in memory right now.`;
+                }
+            }
+            
+            let finalSystemInstruction = "you are a unique bot made for a non-profit organization called OWGT (short for OneWorldGreaterTogether), and therefore, your name is OWGT Bot. you are not OWGT yourself, you are just its bot. be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. NEVER use the f word (f*ck) or the b word (b*tch)! the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
+            
+            if (message.author.username === ALLOWED_USERNAME) {
+                finalSystemInstruction += `\n\nYou are speaking with ar_him, your creator. Be particularly witty, a little playful, appreciative and agree with/respect him.`;
+            } else {
+                finalSystemInstruction += `\n\nYou are speaking with the user "${message.author.username}". Refer to them by name if it feels natural.`;
+            }
+
+            if (shouldUseKB(message, state)) {
+                const kbString = Object.entries(state.knowledgeBase).map(([key, value]) => `Topic: ${key.replace(/_/g, ' ')}\n${value}`).join('\n---\n').substring(0, 1500);
+                if (kbString) {
+                    finalSystemInstruction += `\n\nCRITICAL DIRECTIVE: The user's question is about the organization. You MUST base your answer *exclusively* on the provided knowledge base text. Do not use any external information or deviate from it. Do not mention you were given this data.\n\nKNOWLEDGE BASE:\n${kbString}\nEND KB.`;
+                }
+            }
+            
+            if (injectedContext) {
+                finalSystemInstruction += `\n\nADDITIONAL LIVE CONTEXT: Use the following up-to-the-minute data to answer the user's question if it is relevant. This data is more current than your training data. Do not mention you were given this data.\n${injectedContext}`;
+            }
+            // --- End Dynamic System Prompt ---
 
             const chat = ai.chats.create({ model: 'gemini-2.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction }});
             const result = await serviceHelpers.callWithRetries(() => chat.sendMessage({ message: promptForAI }), { serviceKey: 'gemini_chat' });
