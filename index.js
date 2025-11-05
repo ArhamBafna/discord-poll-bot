@@ -869,7 +869,7 @@ discordClient.on('interactionCreate', async (interaction) => {
                 .setTitle('Update Knowledge Base');
             const knowledgeInput = new TextInputBuilder()
                 .setCustomId('knowledgeInput')
-                .setLabel("What should the bot know about your organization?")
+                .setLabel("What the bot should know about the org:")
                 .setStyle(TextInputStyle.Paragraph)
                 .setValue(currentKnowledge)
                 .setPlaceholder('- Our mission is to...\n- We were founded in...')
@@ -880,14 +880,15 @@ discordClient.on('interactionCreate', async (interaction) => {
         }
 
     } catch (error) {
-        console.error(`[COMMAND_HANDLER] Error processing interaction in guild ${interaction.guild?.id}:`, error);
+        const commandIdentifier = interaction.isCommand() ? `/${interaction.commandName}` : `(ID: ${interaction.customId})`;
+        console.error(`[INTERACTION_HANDLER] Error on ${commandIdentifier} in guild ${interaction.guild?.id}:`, error);
         try {
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({ content: "Oops! Something went wrong while executing this command.", ephemeral: true });
             } else {
                 await interaction.reply({ content: "Oops! Something went wrong while executing this command.", ephemeral: true });
             }
-        } catch (replyError) { console.error(`[COMMAND_HANDLER] CRITICAL: Failed to send error reply.`, replyError); }
+        } catch (replyError) { console.error(`[INTERACTION_HANDLER] CRITICAL: Failed to send error reply.`, replyError); }
     }
 });
 
