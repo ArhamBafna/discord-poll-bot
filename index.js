@@ -180,7 +180,6 @@ async function saveQuestionToHistory(guildId, question) {
 
 // --- Gemini API Schemas (Stateless) ---
 const triviaPollSchema = { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, minItems: 4, maxItems: 4 }, correctAnswerIndex: { type: Type.INTEGER }, explanation: { type: Type.STRING } }, required: ["question", "options", "correctAnswerIndex", "explanation"] };
-const discussionPollSchema = { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, minItems: 2, maxItems: 4 } }, required: ["question", "options"] };
 
 // --- Gemini API Generation Functions (Now using central resilience helper) ---
 
@@ -242,36 +241,6 @@ ${historyInstruction}
     }
 
     console.error(`[GEMINI] CRITICAL: Failed to generate a unique trivia poll after ${MAX_UNIQUE_ATTEMPTS} attempts.`);
-    return { status: 'error', permanent: false, error: new Error('Failed to generate unique question') };
-}
-
-async function generateDiscussionPoll(history = []) {
-    const historyInstruction = history.length > 0 ? `Here is a list of recent questions to avoid repeating:\n- "${history.join('"\n- "')}"` : "";
-    const prompt = `You are an expert AI discussion poll creator. Your goal is to generate a NEW and UNIQUE subjective, opinion-based poll about AI to spark community discussion. Good examples: "What AI Model do you primarily use?", "Will AI take over the world?".
-
-**ABSOLUTE RULE: It is forbidden to generate a question that is the same as or very similar to any question in the history list provided below.** Do not rephrase or slightly modify past questions. Create something entirely new.
-
-${historyInstruction}
-
-**CRITICAL REQUIREMENT:** Each poll option MUST be under 55 characters. Generate the poll based on the provided schema.`;
-
-    const normalizedHistory = new Set(history.map(q => q.toLowerCase().trim()));
-    const MAX_UNIQUE_ATTEMPTS = 5;
-
-    for (let attempt = 1; attempt <= MAX_UNIQUE_ATTEMPTS; attempt++) {
-        const pollResult = await generatePollWithRetries(prompt, discussionPollSchema, 1.0, 'gemini_discussion');
-        if (pollResult.status !== 'success') return pollResult; // Propagate failure up
-
-        const pollData = pollResult.data;
-        const normalizedNewQuestion = pollData.question.toLowerCase().trim();
-        if (!normalizedHistory.has(normalizedNewQuestion)) {
-            return { status: 'success', data: pollData }; // Found a unique question
-        }
-        
-        console.warn(`[GEMINI][UNIQUE] Generated a duplicate discussion question on attempt ${attempt}/${MAX_UNIQUE_ATTEMPTS}. Retrying for a unique one...`);
-    }
-
-    console.error(`[GEMINI] CRITICAL: Failed to generate a unique discussion poll after ${MAX_UNIQUE_ATTEMPTS} attempts.`);
     return { status: 'error', permanent: false, error: new Error('Failed to generate unique question') };
 }
 
@@ -403,14 +372,11 @@ async function performDailyPost(channelId, isCatchUp = false) {
         
         await resolveLastPoll(channel);
 
-        const dayOfWeek = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
-        const isDiscussionDay = ['Tuesday', 'Friday'].includes(dayOfWeek);
-        
-        // Fetch history for ALL poll types to prevent any repetition.
+        // Fetch history to prevent any repetition.
         const historyRes = await pool.query('SELECT question FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50', [guildId]);
         const questionHistory = historyRes.rows.map(row => row.question);
         
-        let pollResult = isDiscussionDay ? await generateDiscussionPoll(questionHistory) : await generateTriviaPoll('', questionHistory);
+        let pollResult = await generateTriviaPoll('', questionHistory);
         let newPollData;
         let usedFallback = false;
         
@@ -419,11 +385,11 @@ async function performDailyPost(channelId, isCatchUp = false) {
             serviceHelpers.metrics.fallback_served++;
             usedFallback = true;
             const lastPoll = state.lastSuccessfulPoll;
-            if (lastPoll) {
+            if (lastPoll && lastPoll.type === 'trivia') {
                 console.log(`[POLL][FALLBACK] Using last successful poll as fallback.`);
                 newPollData = { ...lastPoll, isFallback: true };
             } else {
-                console.log(`[POLL][FALLBACK] No last successful poll found. Using a static fallback.`);
+                console.log(`[POLL][FALLBACK] No last successful trivia poll found. Using a static fallback.`);
                 newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], isFallback: true };
             }
         } else {
@@ -431,9 +397,8 @@ async function performDailyPost(channelId, isCatchUp = false) {
         }
 
         if (newPollData) {
-            const finalPollType = newPollData.type || (isDiscussionDay ? 'discussion' : 'trivia');
-            newPollData.type = finalPollType;
-            let pollIntroMessage = isCatchUp ? "Oops, forgot to post the poll today! Here it is... 😅" : (finalPollType === 'discussion' ? "**Let's Discuss!** 🤔" : "**Today's AI Poll!** 🧠");
+            newPollData.type = 'trivia'; // All polls are now trivia
+            let pollIntroMessage = isCatchUp ? "Oops, forgot to post the poll today! Here it is... 😅" : "@everyone **Today's AI Poll!** 🧠";
             if (usedFallback) pollIntroMessage += `\n*(posted using fallback because the AI service was unavailable)*`;
 
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
