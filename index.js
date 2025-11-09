@@ -53,7 +53,7 @@ try {
 
 // --- Initialize Database and Clients ---
 const pool = new Pool({ connectionString: sanitizedDbUrl });
-const discordClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const discordClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildMembers] });
 
 let ai; 
 try {
@@ -77,6 +77,7 @@ const FALLBACK_POLLS = [
 // --- State Management: In-memory cache for performance, keyed by Guild (Server) ID ---
 const serverStateCache = {};
 const postingLock = new Set(); // Prevents concurrent poll posting
+const inviteCache = new Map(); // In-memory cache for server invites { guildId: Map<inviteCode, uses> }
 
 // --- Database Functions ---
 async function initializeDatabase() {
@@ -86,6 +87,7 @@ async function initializeDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS state (guild_id VARCHAR(255) NOT NULL, key VARCHAR(255) NOT NULL, value JSONB, PRIMARY KEY (guild_id, key));`);
     await client.query(`CREATE TABLE IF NOT EXISTS question_history (id SERIAL PRIMARY KEY, guild_id VARCHAR(255) NOT NULL, question TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
     await client.query(`CREATE TABLE IF NOT EXISTS knowledge_base (guild_id VARCHAR(255) NOT NULL, key VARCHAR(255) NOT NULL, value TEXT NOT NULL, PRIMARY KEY (guild_id, key));`);
+    await client.query(`CREATE TABLE IF NOT EXISTS invites (guild_id VARCHAR(255) NOT NULL, code VARCHAR(255) NOT NULL, inviter_id VARCHAR(255) NOT NULL, uses INT NOT NULL DEFAULT 0, PRIMARY KEY (guild_id, code));`);
     console.log('[DATABASE] All tables are set up for multi-server support.');
   } catch (error) {
     console.error('[DATABASE] CRITICAL ERROR: Failed to initialize database.', error);
@@ -176,6 +178,41 @@ async function saveQuestionToHistory(guildId, question) {
         await pool.query('INSERT INTO question_history (guild_id, question) VALUES ($1, $2)', [guildId, question]);
         await pool.query(`DELETE FROM question_history WHERE guild_id = $1 AND id NOT IN (SELECT id FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50);`, [guildId]);
     } catch (error) { console.error(`[DATABASE] Failed to save question history for guild ${guildId}:`, error); }
+}
+
+// --- Invite Tracking Helper ---
+async function cacheAndSyncInvites(guild) {
+    try {
+        if (!guild.members.me.permissions.has('ManageGuild')) {
+             console.log(`[INVITES] Missing 'Manage Server' permission in ${guild.name}. Skipping invite tracking.`);
+             return;
+        }
+        const invites = await guild.invites.fetch();
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Clear old invites for this guild to handle deletions that happened while offline
+            await client.query('DELETE FROM invites WHERE guild_id = $1', [guild.id]);
+            for (const inv of invites.values()) {
+                if (inv.inviter) {
+                    await client.query(
+                        `INSERT INTO invites (guild_id, code, inviter_id, uses) VALUES ($1, $2, $3, $4)`,
+                        [guild.id, inv.code, inv.inviter.id, inv.uses]
+                    );
+                }
+            }
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
+        inviteCache.set(guild.id, new Map(invites.map(inv => [inv.code, inv.uses])));
+        console.log(`[INVITES] Synced and cached ${invites.size} invites for guild ${guild.name}.`);
+    } catch (err) {
+        console.error(`[INVITES] Failed to sync invites for guild ${guild.name} (${guild.id}).`, err.message.includes('Missing Access') ? 'Missing Permissions.' : err);
+    }
 }
 
 // --- Gemini API Schemas (Stateless) ---
@@ -532,6 +569,10 @@ discordClient.once('ready', async () => {
     console.error('[COMMANDS] Failed to reload application commands:', error);
   }
 
+  console.log('[INVITES] Caching invites for all guilds...');
+  await Promise.all(discordClient.guilds.cache.map(guild => cacheAndSyncInvites(guild)));
+  console.log('[INVITES] Invite caching complete.');
+
   TARGET_CHANNEL_IDS.forEach(channelId => {
     cron.schedule('0 6 * * *', () => performDailyPost(channelId), { scheduled: true, timezone: "America/New_York" });
     cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId), { scheduled: true, timezone: "America/New_York" });
@@ -543,6 +584,85 @@ discordClient.once('ready', async () => {
   
   console.log('[STARTUP] Scheduling a delayed check for missed polls in 5 seconds...');
   setTimeout(() => { checkForMissedPolls().catch(err => console.error("[STARTUP] Deferred poll check failed.", err)); }, 5000);
+});
+
+// --- Invite Tracking Event Handlers ---
+discordClient.on('guildCreate', cacheAndSyncInvites);
+
+discordClient.on('inviteCreate', async invite => {
+    try {
+        const guildInvites = inviteCache.get(invite.guild.id);
+        if (guildInvites) {
+            guildInvites.set(invite.code, invite.uses);
+        }
+        await pool.query(
+            `INSERT INTO invites (guild_id, code, inviter_id, uses) VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, code) DO NOTHING`,
+            [invite.guild.id, invite.code, invite.inviter.id, invite.uses]
+        );
+        console.log(`[INVITES] Tracked new invite ${invite.code} for guild ${invite.guild.name}.`);
+    } catch (err) {
+        console.error(`[INVITES] Error in inviteCreate event for guild ${invite.guild.id}:`, err);
+    }
+});
+
+discordClient.on('inviteDelete', async invite => {
+    try {
+        const guildInvites = inviteCache.get(invite.guild.id);
+        if (guildInvites) {
+            guildInvites.delete(invite.code);
+        }
+        await pool.query('DELETE FROM invites WHERE guild_id = $1 AND code = $2', [invite.guild.id, invite.code]);
+        console.log(`[INVITES] Stopped tracking deleted invite ${invite.code} for guild ${invite.guild.name}.`);
+    } catch(err) {
+        console.error(`[INVITES] Error in inviteDelete event for guild ${invite.guild.id}:`, err);
+    }
+});
+
+discordClient.on('guildMemberAdd', async member => {
+    try {
+        const cachedInvites = inviteCache.get(member.guild.id);
+        if (!cachedInvites) {
+            console.log(`[INVITES] No cached invites for guild ${member.guild.id} during guildMemberAdd. Awaiting next sync.`);
+            return;
+        }
+
+        const newInvites = await member.guild.invites.fetch();
+        const usedInvite = newInvites.find(inv => inv.uses > (cachedInvites.get(inv.code) || 0));
+
+        inviteCache.set(member.guild.id, new Map(newInvites.map(inv => [inv.code, inv.uses])));
+
+        const welcomeChannel = member.guild.systemChannel;
+        if (!welcomeChannel || !welcomeChannel.permissionsFor(member.guild.members.me).has('SendMessages')) {
+            console.log(`[INVITES] No system channel or permissions to send welcome message in ${member.guild.name}.`);
+            return;
+        }
+
+        const arHimUser = member.guild.members.cache.find(m => m.user.username === ALLOWED_USERNAME) || (await member.guild.members.fetch()).find(m => m.user.username === ALLOWED_USERNAME);
+        let welcomeMessage = `welcome to the server, ${member}!`;
+        let inviter = null;
+
+        if (usedInvite && usedInvite.inviter) {
+            inviter = await discordClient.users.fetch(usedInvite.inviter.id).catch(() => null);
+            if (inviter) {
+                welcomeMessage += ` you were invited by ${inviter}.`;
+            }
+            await pool.query(
+                `UPDATE invites SET uses = $1 WHERE guild_id = $2 AND code = $3`,
+                [usedInvite.uses, member.guild.id, usedInvite.code]
+            ).catch(err => console.error(`[INVITES_DB] Failed to update uses for invite ${usedInvite.code}`, err));
+        } else {
+             welcomeMessage += " i couldn't figure out who invited you, but we're glad you're here.";
+        }
+        
+        if (arHimUser) {
+            welcomeMessage += ` (cc ${arHimUser})`;
+        }
+
+        await welcomeChannel.send(welcomeMessage);
+
+    } catch (err) {
+        console.error(`[INVITES] Error in guildMemberAdd event for guild ${member.guild.id}:`, err);
+    }
 });
 
 // --- Conversational AI Handler ---
