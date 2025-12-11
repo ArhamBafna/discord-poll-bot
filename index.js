@@ -669,9 +669,11 @@ discordClient.on('guildMemberAdd', async member => {
 discordClient.on('messageCreate', async (message) => {
     try {
         if (message.author.bot || !message.guild) return;
-        if (message.mentions.everyone) return; // Ignore @everyone and @here pings
+        
+        // STRICTER CHECK: Ignore if message mentions everyone/here OR contains the text (to catch edge cases)
+        if (message.mentions.everyone || message.content.includes('@everyone') || message.content.includes('@here')) return;
 
-        const isMentioned = message.mentions.has(discordClient.user.id);
+        const isMentioned = message.mentions.users.has(discordClient.user.id);
         let isReplyToBot = false;
         if (message.reference && message.reference.messageId) {
             const referencedMessage = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
