@@ -669,6 +669,7 @@ discordClient.on('guildMemberAdd', async member => {
 discordClient.on('messageCreate', async (message) => {
     try {
         if (message.author.bot || !message.guild) return;
+        if (message.mentions.everyone) return; // Ignore @everyone and @here pings
 
         const isMentioned = message.mentions.has(discordClient.user.id);
         let isReplyToBot = false;
