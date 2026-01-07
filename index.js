@@ -645,6 +645,14 @@ discordClient.on('guildMemberAdd', async member => {
             inviter = await discordClient.users.fetch(usedInvite.inviter.id).catch(() => null);
             if (inviter) {
                 welcomeMessage += ` you were invited by ${inviter}.`;
+                
+                // EXCLUSION: mr.democracy._29458 (Display Name: PraiseGod) does not get points
+                if (inviter.username !== 'mr.democracy._29458') {
+                    const newScore = await admin_setOrAddUserScore(member.guild.id, inviter.id, 1, 'add');
+                    if (newScore !== null) {
+                        welcomeMessage += ` i added a point to ${inviter}'s score for the invite!`;
+                    }
+                }
             }
             await pool.query(
                 `UPDATE invites SET uses = $1 WHERE guild_id = $2 AND code = $3`,
