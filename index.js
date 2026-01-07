@@ -4,6 +4,11 @@
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
 // Version: 7.0 (Slash Commands & Interactive KB)
 
+// --- Network Hardening & IPv4 Enforcement ---
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+const https = require('https');
+
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
 const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, Routes, REST, ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = require('discord.js');
@@ -13,13 +18,12 @@ const { Pool } = require('pg');
 const serviceHelpers = require('./lib/serviceHelpers.js');
 
 // --- Global Error Handlers (Safety Net) ---
-process.on('unhandledRejection', error => {
-    console.error('CRITICAL ERROR: Unhandled Promise Rejection:', error);
-    process.exit(1);
+process.on('unhandledRejection', err => {
+  console.error('[FATAL] Unhandled rejection:', err);
 });
-process.on('uncaughtException', error => {
-    console.error('CRITICAL ERROR: Uncaught Exception:', error);
-    process.exit(1);
+
+process.on('uncaughtException', err => {
+  console.error('[FATAL] Uncaught exception:', err);
 });
 
 
@@ -53,7 +57,25 @@ try {
 
 // --- Initialize Database and Clients ---
 const pool = new Pool({ connectionString: sanitizedDbUrl });
-const discordClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildMembers] });
+
+// Hardened Discord Client Options
+const discordClient = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildInvites,
+    GatewayIntentBits.GuildMembers
+  ],
+  rest: {
+    timeout: 60000,
+    retries: 5
+  },
+  ws: {
+    large_threshold: 50
+  },
+  failIfNotExists: false
+});
 
 let ai; 
 try {
@@ -995,6 +1017,18 @@ function loginWithTimeout(token, timeoutMs = 90000) {
     });
 }
 
+function testDiscordGateway() {
+  return new Promise(resolve => {
+    https.get('https://discord.com/api/v10/gateway', res => {
+      console.log('[NET] Discord gateway status:', res.statusCode);
+      resolve();
+    }).on('error', err => {
+      console.error('[NET] Discord gateway unreachable:', err.message);
+      resolve();
+    });
+  });
+}
+
 // --- Start Health Check & Login ---
 async function startBot() {
     keepAlive();
@@ -1002,6 +1036,8 @@ async function startBot() {
     // Increased retries and timeout for resilience against cold starts on free tier platforms
     const MAX_RETRIES = 10;
     let attempt = 0;
+
+    await testDiscordGateway(); // Test connectivity before starting
 
     while (attempt < MAX_RETRIES) {
         try {
