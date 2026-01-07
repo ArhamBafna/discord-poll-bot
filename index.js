@@ -988,7 +988,7 @@ discordClient.on('interactionCreate', async (interaction) => {
 });
 
 
-function loginWithTimeout(token, timeoutMs = 30000) {
+function loginWithTimeout(token, timeoutMs = 90000) {
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => { reject(new Error('Login timed out')); }, timeoutMs);
         discordClient.login(token).then(r => { clearTimeout(timeout); resolve(r); }).catch(e => { clearTimeout(timeout); reject(e); });
@@ -998,18 +998,43 @@ function loginWithTimeout(token, timeoutMs = 30000) {
 // --- Start Health Check & Login ---
 async function startBot() {
     keepAlive();
-    try {
-        console.log('[DISCORD] Attempting to log in...');
-        await loginWithTimeout(DISCORD_BOT_TOKEN, 30000);
-    } catch (error) {
-        console.error('--- !!! DISCORD LOGIN FAILED !!! ---');
-        if (error.message === 'Login timed out') {
-            console.error('REASON: The login process timed out. This usually indicates a network problem between the host and Discord.');
-        } else {
-            console.error('REASON: Invalid token or missing Gateway Intents in the Discord Developer Portal.');
+    
+    // Increased retries and timeout for resilience against cold starts on free tier platforms
+    const MAX_RETRIES = 10;
+    let attempt = 0;
+
+    while (attempt < MAX_RETRIES) {
+        try {
+            attempt++;
+            console.log(`[DISCORD] Attempting to log in (Attempt ${attempt}/${MAX_RETRIES})...`);
+            await loginWithTimeout(DISCORD_BOT_TOKEN, 90000); // 90s timeout
+            console.log('[DISCORD] Login successful.');
+            return; // Exit function on success
+        } catch (error) {
+            console.error(`[DISCORD] Login attempt ${attempt} failed.`);
+            
+            // Check for unrecoverable errors
+            const msg = error.message.toLowerCase();
+            if (msg.includes('token') || msg.includes('intent') || msg.includes('disallowed')) {
+                console.error('--- !!! DISCORD LOGIN FAILED PERMANENTLY !!! ---');
+                console.error('REASON: Invalid Token or Configuration.');
+                console.error(error);
+                process.exit(1);
+            }
+
+            if (attempt >= MAX_RETRIES) {
+                console.error('--- !!! DISCORD LOGIN FAILED PERMANENTLY !!! ---');
+                console.error('REASON: Maximum retries reached. Network or Discord Gateway issues.');
+                console.error('Last Error:', error);
+                process.exit(1);
+            }
+
+            // Exponential Backoff with Jitter
+            // 5s, 7.5s, 11s, 16s... max 60s
+            const delay = Math.min(60000, 5000 * Math.pow(1.5, attempt - 1)); 
+            console.log(`[DISCORD] Retrying in ${Math.round(delay/1000)} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
-        console.error('Full Error Details:', error);
-        process.exit(1);
     }
 }
 
