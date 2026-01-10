@@ -320,61 +320,6 @@ async function buildConversationHistory(message) {
     return history;
 }
 
-/**
- * Deterministically decides whether the knowledge base should be used for a given message.
- * @param {import('discord.js').Message} message The user's message.
- * @param {object} guildState The current state object for the guild.
- * @returns {boolean} True if the KB should be consulted.
- */
-function shouldUseKB(message, guildState) {
-    const content = message.content.toLowerCase();
-    const isQuestion = /^(who|what|where|when|how|why|which)\b/i.test(content);
-    const knowledgeBase = guildState.knowledgeBase || {};
-
-    // Layer 1: Comprehensive keyword triggers based on known KB content
-    const explicitTriggers = [
-        // Org Identity
-        'mission', 'team', 'owgt', 'rule', 'non-profit', 'nonprofit', 'organization',
-        'about', 'who are you', 'what is this', 'vision', 'founder', 'creator',
-        // People
-        'artham', 'panshul', 'aniketh', 'yuvi', 'ashwin', 'tunuj', 'ashrith', 'ar_him',
-        // Activities
-        'workshop', 'event', 'competition', 'hackathon', 'cleanup', 'water bottle',
-        'woodrow wilson', 'edison',
-        // Topics
-        'healthcare', 'environment', 'business', 'empowerment',
-        // Socials / Links
-        'social media', 'tiktok', 'discord', 'youtube', 'website', 'link',
-        // Meta
-        'accomplishments', 'contact', 'admin', 'get involved', 'support', 'join',
-        'knowledge base', 'help'
-    ];
-    if (explicitTriggers.some(trigger => content.includes(trigger))) return true;
-    if (isQuestion && ['where is', 'where to', 'who to contact'].some(phrase => content.includes(phrase))) return true;
-
-    // Layer 2: Direct KB-key matches
-    for (const key in knowledgeBase) {
-        if (content.includes(key.toLowerCase().replace(/_/g, ' '))) return true;
-    }
-
-    // Layer 3: Lightweight fuzzy matching (token overlap)
-    const messageTokens = new Set(content.split(/\s+/).filter(t => t.length > 2));
-    if (messageTokens.size < 3) return false; // Avoid matching on very short messages
-
-    const combinedKbText = Object.entries(knowledgeBase).map(([key, value]) => `${key.replace(/_/g, ' ')} ${value}`).join(' ');
-    const kbTokens = new Set(combinedKbText.toLowerCase().split(/\s+/).filter(t => t.length > 2));
-    
-    const commonTokens = new Set([...messageTokens].filter(token => kbTokens.has(token)));
-    const score = commonTokens.size / Math.min(messageTokens.size, kbTokens.size);
-
-    if (score >= 0.35) {
-        console.log(`[KB_LOGIC] Fuzzy match triggered with score: ${score.toFixed(2)}`);
-        return true;
-    }
-
-    return false;
-}
-
 // --- Poll Resolution Function ---
 async function resolveLastPoll(channel) {
     if (!channel || !channel.guild) { console.error(`[RESOLVE] Invalid channel provided.`); return false; }
@@ -785,21 +730,25 @@ discordClient.on('messageCreate', async (message) => {
                 }
             }
             
-            let finalSystemInstruction = "you are a unique bot made for a non-profit organization called OWGT (short for OneWorldGreaterTogether), and therefore, your name is OWGT Bot. you are not OWGT yourself, you are just its bot. be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. NEVER use the f word (f*ck) or the b word (b*tch)! the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
+            let finalSystemInstruction = "you are a unique bot made for a non-profit organization called OWGT (short for OneWorldGreaterTogether), and therefore, your name is OWGT Bot. you are not OWGT yourself, you are just its bot. be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. Arham (username ar_him) is your creator. remember that when message received from him. NEVER use the f word (f*ck) or the b word (b*tch)! the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
             
+            // --- IDENTITY GUARD ---
+            finalSystemInstruction += `\n\nCRITICAL IDENTITY INSTRUCTION: Distinguish carefully between similar names, specifically 'Arham' (the creator) and 'Artham' (OWGT's Founder). Do not confuse them.`;
+
             if (message.author.username === ALLOWED_USERNAME) {
                 finalSystemInstruction += `\n\nYou are speaking with ar_him, your creator. Be particularly witty, a little playful, appreciative and agree with/respect him.`;
             } else {
                 finalSystemInstruction += `\n\nYou are speaking with the user "${message.author.username}". Refer to them by name if it feels natural.`;
             }
 
-            if (shouldUseKB(message, state)) {
-                const kbString = Object.entries(state.knowledgeBase).map(([key, value]) => `Topic: ${key.replace(/_/g, ' ')}\n${value}`).join('\n---\n').substring(0, 1500);
-                if (kbString) {
-                    finalSystemInstruction += `\n\nCRITICAL DIRECTIVE: The user's question is about the organization. You MUST base your answer *exclusively* on the provided knowledge base text. Do not use any external information or deviate from it. Do not mention you were given this data.\n\nKNOWLEDGE BASE:\n${kbString}\nEND KB.`;
-                }
+            // --- FULL CONTEXT INJECTION (Fix for database referral) ---
+            const kbData = state.knowledgeBase['main-info'];
+            if (kbData) {
+                // We inject the entire 'main-info' block up to 40,000 characters.
+                // This replaces the heuristic search, ensuring the AI *always* knows this info.
+                finalSystemInstruction += `\n\nCONTEXT FROM KNOWLEDGE BASE (Use this to answer questions about the organization/team):\n${kbData.slice(0, 40000)}\nEND CONTEXT.`;
             }
-            
+
             if (injectedContext) {
                 finalSystemInstruction += `\n\nADDITIONAL LIVE CONTEXT: Use the following up-to-the-minute data to answer the user's question if it is relevant. This data is more current than your training data. Do not mention you were given this data.\n${injectedContext}`;
             }
@@ -811,7 +760,8 @@ discordClient.on('messageCreate', async (message) => {
             if (result.status === 'success') {
                 await message.reply(result.data.text.trim().toLowerCase());
             } else if (result.status === 'circuit_open' || result.status === 'error') {
-                const position = serviceHelpers.enqueueConvRequest(message);
+                // Pass the system instruction to the queue so the worker knows the context too
+                const position = serviceHelpers.enqueueConvRequest(message, finalSystemInstruction);
                 if (position) {
                     await message.reply(`i'm a bit overloaded — i saved your request to a short queue and will reply here when i can. (position #${position})`);
                 } else {
@@ -979,7 +929,10 @@ discordClient.on('interactionCreate', async (interaction) => {
         }
 
         if (commandName === 'update-knowledge') {
-            const currentKnowledge = state.knowledgeBase['main-info'] || 'Enter your organization\'s information here.';
+            // FIX: Ensure text is safe and valid (not null/undefined, and under 4000 chars)
+            const rawKnowledge = state.knowledgeBase['main-info'];
+            // If undefined, use placeholder. Slice to safeguard against DB overflowing Discord limit.
+            const currentKnowledge = (rawKnowledge || 'Enter your organization\'s information here.').slice(0, 3999);
 
             const modal = new ModalBuilder()
                 .setCustomId('knowledgeBaseModal')
@@ -988,7 +941,7 @@ discordClient.on('interactionCreate', async (interaction) => {
                 .setCustomId('knowledgeInput')
                 .setLabel("What the bot should know about the org:")
                 .setStyle(TextInputStyle.Paragraph)
-                .setValue(currentKnowledge)
+                .setValue(currentKnowledge) // Safe value
                 .setPlaceholder('- Our mission is to...\n- We were founded in...')
                 .setRequired(true);
             const actionRow = new ActionRowBuilder().addComponents(knowledgeInput);
