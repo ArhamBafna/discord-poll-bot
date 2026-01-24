@@ -12,6 +12,18 @@ const https = require('https');
 // --- Import necessary libraries ---
 const keepAlive = require('./keepAlive.js');
 const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, Routes, REST, ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = require('discord.js');
+
+// --- Helper for Timestamped Logs ---
+function log(message, level = 'INFO') {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] [${level}] ${message}`;
+    if (level === 'ERROR' || level === 'FATAL') {
+        console.error(logMessage);
+    } else {
+        console.log(logMessage);
+    }
+}
+
 const { GoogleGenAI, Type } = require('@google/genai');
 const cron = require('node-cron');
 const { Pool } = require('pg');
@@ -19,11 +31,13 @@ const serviceHelpers = require('./lib/serviceHelpers.js');
 
 // --- Global Error Handlers (Safety Net) ---
 process.on('unhandledRejection', err => {
-  console.error('[FATAL] Unhandled rejection:', err);
+    log(`Unhandled rejection: ${err.message || err}`, 'FATAL');
+    console.error(err); // Keep full stack trace
 });
 
 process.on('uncaughtException', err => {
-  console.error('[FATAL] Uncaught exception:', err);
+    log(`Uncaught exception: ${err.message || err}`, 'FATAL');
+    console.error(err); // Keep full stack trace
 });
 
 
@@ -37,21 +51,21 @@ const CONTROL_ROLE_NAME = 'bot-control';
 
 // --- Critical Environment Variable Check ---
 if (!GEMINI_API_KEY || !DISCORD_BOT_TOKEN || !TARGET_CHANNEL_IDS.length || !DATABASE_URL) {
-  console.error("CRITICAL ERROR: Make sure API_KEY, DISCORD_BOT_TOKEN, DATABASE_URL, and TARGET_CHANNEL_IDS are set in your environment variables. TARGET_CHANNEL_IDS should be a comma-separated list.");
-  process.exit(1);
+    console.error("CRITICAL ERROR: Make sure API_KEY, DISCORD_BOT_TOKEN, DATABASE_URL, and TARGET_CHANNEL_IDS are set in your environment variables. TARGET_CHANNEL_IDS should be a comma-separated list.");
+    process.exit(1);
 }
 
 // --- Database Connection Sanitization ---
 let sanitizedDbUrl = DATABASE_URL;
 try {
-  const dbUrl = new URL(DATABASE_URL);
-  if (dbUrl.searchParams.has('transaction_timeout')) {
-    dbUrl.searchParams.delete('transaction_timeout');
-    sanitizedDbUrl = dbUrl.toString();
-    console.log('[DATABASE] Removed unsupported "transaction_timeout" parameter from DB connection string.');
-  }
+    const dbUrl = new URL(DATABASE_URL);
+    if (dbUrl.searchParams.has('transaction_timeout')) {
+        dbUrl.searchParams.delete('transaction_timeout');
+        sanitizedDbUrl = dbUrl.toString();
+        console.log('[DATABASE] Removed unsupported "transaction_timeout" parameter from DB connection string.');
+    }
 } catch (e) {
-  console.error('[DATABASE] Could not parse DATABASE_URL. Using it as is.', e);
+    console.error('[DATABASE] Could not parse DATABASE_URL. Using it as is.', e);
 }
 
 
@@ -60,32 +74,32 @@ const pool = new Pool({ connectionString: sanitizedDbUrl });
 
 // Hardened Discord Client Options
 const discordClient = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildInvites,
-    GatewayIntentBits.GuildMembers
-  ],
-  rest: {
-    timeout: 60000,
-    retries: 5
-  },
-  ws: {
-    large_threshold: 50
-  },
-  failIfNotExists: false
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildInvites,
+        GatewayIntentBits.GuildMembers
+    ],
+    rest: {
+        timeout: 60000,
+        retries: 5
+    },
+    ws: {
+        large_threshold: 50
+    },
+    failIfNotExists: false
 });
 
-let ai; 
+let ai;
 try {
-  ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-  discordClient.ai = ai; // Attach to client for queue worker access
-  console.log('[GEMINI] Gemini API client initialized successfully.');
+    ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    discordClient.ai = ai; // Attach to client for queue worker access
+    console.log('[GEMINI] Gemini API client initialized successfully.');
 } catch (error) {
-  console.error('[GEMINI] CRITICAL: Failed to initialize the Gemini API client. This is often due to a library or environment issue. Please check the error details below.');
-  console.error(error);
-  process.exit(1);
+    console.error('[GEMINI] CRITICAL: Failed to initialize the Gemini API client. This is often due to a library or environment issue. Please check the error details below.');
+    console.error(error);
+    process.exit(1);
 }
 
 
@@ -103,20 +117,20 @@ const inviteCache = new Map(); // In-memory cache for server invites { guildId: 
 
 // --- Database Functions ---
 async function initializeDatabase() {
-  const client = await pool.connect();
-  try {
-    await client.query(`CREATE TABLE IF NOT EXISTS leaderboard (guild_id VARCHAR(255) NOT NULL, user_id VARCHAR(255) NOT NULL, score INT NOT NULL DEFAULT 0, PRIMARY KEY (guild_id, user_id));`);
-    await client.query(`CREATE TABLE IF NOT EXISTS state (guild_id VARCHAR(255) NOT NULL, key VARCHAR(255) NOT NULL, value JSONB, PRIMARY KEY (guild_id, key));`);
-    await client.query(`CREATE TABLE IF NOT EXISTS question_history (id SERIAL PRIMARY KEY, guild_id VARCHAR(255) NOT NULL, question TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
-    await client.query(`CREATE TABLE IF NOT EXISTS knowledge_base (guild_id VARCHAR(255) NOT NULL, key VARCHAR(255) NOT NULL, value TEXT NOT NULL, PRIMARY KEY (guild_id, key));`);
-    await client.query(`CREATE TABLE IF NOT EXISTS invites (guild_id VARCHAR(255) NOT NULL, code VARCHAR(255) NOT NULL, inviter_id VARCHAR(255) NOT NULL, uses INT NOT NULL DEFAULT 0, PRIMARY KEY (guild_id, code));`);
-    console.log('[DATABASE] All tables are set up for multi-server support.');
-  } catch (error) {
-    console.error('[DATABASE] CRITICAL ERROR: Failed to initialize database.', error);
-    process.exit(1);
-  } finally {
-    client.release();
-  }
+    const client = await pool.connect();
+    try {
+        await client.query(`CREATE TABLE IF NOT EXISTS leaderboard (guild_id VARCHAR(255) NOT NULL, user_id VARCHAR(255) NOT NULL, score INT NOT NULL DEFAULT 0, PRIMARY KEY (guild_id, user_id));`);
+        await client.query(`CREATE TABLE IF NOT EXISTS state (guild_id VARCHAR(255) NOT NULL, key VARCHAR(255) NOT NULL, value JSONB, PRIMARY KEY (guild_id, key));`);
+        await client.query(`CREATE TABLE IF NOT EXISTS question_history (id SERIAL PRIMARY KEY, guild_id VARCHAR(255) NOT NULL, question TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`);
+        await client.query(`CREATE TABLE IF NOT EXISTS knowledge_base (guild_id VARCHAR(255) NOT NULL, key VARCHAR(255) NOT NULL, value TEXT NOT NULL, PRIMARY KEY (guild_id, key));`);
+        await client.query(`CREATE TABLE IF NOT EXISTS invites (guild_id VARCHAR(255) NOT NULL, code VARCHAR(255) NOT NULL, inviter_id VARCHAR(255) NOT NULL, uses INT NOT NULL DEFAULT 0, PRIMARY KEY (guild_id, code));`);
+        console.log('[DATABASE] All tables are set up for multi-server support.');
+    } catch (error) {
+        console.error('[DATABASE] CRITICAL ERROR: Failed to initialize database.', error);
+        process.exit(1);
+    } finally {
+        client.release();
+    }
 }
 
 function getServerState(guildId) {
@@ -134,7 +148,7 @@ async function loadStateForGuild(guildId) {
         const leaderboardRes = await client.query('SELECT user_id, score FROM leaderboard WHERE guild_id = $1', [guildId]);
         state.leaderboard = {};
         leaderboardRes.rows.forEach(row => { state.leaderboard[row.user_id] = row.score; });
-        
+
         const stateRes = await client.query("SELECT key, value FROM state WHERE guild_id = $1", [guildId]);
         state.lastPollData = null;
         state.activeOnDemandPoll = null;
@@ -206,8 +220,8 @@ async function saveQuestionToHistory(guildId, question) {
 async function cacheAndSyncInvites(guild) {
     try {
         if (!guild.members.me.permissions.has('ManageGuild')) {
-             console.log(`[INVITES] Missing 'Manage Server' permission in ${guild.name}. Skipping invite tracking.`);
-             return;
+            console.log(`[INVITES] Missing 'Manage Server' permission in ${guild.name}. Skipping invite tracking.`);
+            return;
         }
         const invites = await guild.invites.fetch();
         const client = await pool.connect();
@@ -244,8 +258,8 @@ const triviaPollSchema = { type: Type.OBJECT, properties: { question: { type: Ty
 
 async function generateTextWithRetries(prompt, serviceKey = 'gemini') {
     const result = await serviceHelpers.callWithRetries(
-      () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt }),
-      { serviceKey }
+        () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt }),
+        { serviceKey }
     );
     if (result.status === 'success') {
         return result.data.text.trim();
@@ -256,8 +270,8 @@ async function generateTextWithRetries(prompt, serviceKey = 'gemini') {
 
 async function generatePollWithRetries(prompt, schema, temperature, serviceKey = 'gemini_poll') {
     const result = await serviceHelpers.callWithRetries(
-      () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema, temperature: temperature }}),
-      { serviceKey, timeoutMs: 60000 } // Increased timeout for schema-based generation
+        () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema, temperature: temperature } }),
+        { serviceKey, timeoutMs: 60000 } // Increased timeout for schema-based generation
     );
 
     if (result.status === 'success') {
@@ -295,7 +309,7 @@ ${historyInstruction}
         if (!normalizedHistory.has(normalizedNewQuestion)) {
             return { status: 'success', data: pollData }; // Found a unique question
         }
-        
+
         console.warn(`[GEMINI][UNIQUE] Generated a duplicate trivia question on attempt ${attempt}/${MAX_UNIQUE_ATTEMPTS}. Retrying for a unique one...`);
     }
 
@@ -373,17 +387,17 @@ async function performDailyPost(channelId, isCatchUp = false) {
         console.log(`[POLL][${guildId}][#${channel.name}] Starting daily post. Catch-up: ${isCatchUp}`);
         await loadStateForGuild(guildId);
         const state = getServerState(guildId);
-        
+
         await resolveLastPoll(channel);
 
         // Fetch history to prevent any repetition.
         const historyRes = await pool.query('SELECT question FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50', [guildId]);
         const questionHistory = historyRes.rows.map(row => row.question);
-        
+
         let pollResult = await generateTriviaPoll('', questionHistory);
         let newPollData;
         let usedFallback = false;
-        
+
         if (pollResult.status !== 'success') {
             console.warn(`[POLL][FALLBACK] Gemini API failed. Status: ${pollResult.status}. Deploying a fallback poll.`);
             serviceHelpers.metrics.fallback_served++;
@@ -408,20 +422,21 @@ async function performDailyPost(channelId, isCatchUp = false) {
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
             newPollData.pollMessageId = newPollMessage.id;
             newPollData.createdAt = new Date().toISOString();
-            
+
             state.lastPollData = newPollData;
             await saveStateToDB(guildId, 'lastPollData', newPollData);
-            
+
             if (!usedFallback) { // Only save real polls as "last successful" and to history
                 await saveStateToDB(guildId, 'lastSuccessfulPoll', newPollData);
                 await saveQuestionToHistory(guildId, newPollData.question);
             }
-            
+
             console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
         } else {
             console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not generate a poll from Gemini or use a fallback.`);
         }
-    } catch (error) { console.error(`[POLL][Channel: ${channelId}] Critical error during daily post:`, error);
+    } catch (error) {
+        console.error(`[POLL][Channel: ${channelId}] Critical error during daily post:`, error);
     } finally { postingLock.delete(channelId); }
 }
 
@@ -440,16 +455,16 @@ async function postWeeklySummary(channelId) {
             try {
                 const user = await discordClient.users.fetch(sortedUsers[i][0]);
                 leaderboardString += `${i + 1}. ${user.username} - ${sortedUsers[i][1]} points\n`;
-            } catch {}
+            } catch { }
         }
-        
+
         const prompt = `You are a fun and engaging Discord bot. Write a short, human-like summary for the end-of-week AI poll leaderboard. Here is the data:\n${leaderboardString}\nCongratulate the winner(s), mention some other top players, encourage everyone, and say you're excited for next week. Keep it concise and positive.`;
         const summaryText = await generateTextWithRetries(prompt, 'gemini_summary');
         const description = summaryText || "Here's a look at this week's top contenders! Great job, everyone.";
 
         const summaryEmbed = new EmbedBuilder().setColor('#FFD700').setTitle('🏆 Weekly Poll Report 🏆').setDescription(description).addFields({ name: 'Top 10 This Week', value: leaderboardString || 'No participants this week.' }).setFooter({ text: 'A new week of polls starts tomorrow!' });
         await channel.send({ embeds: [summaryEmbed] });
-    } catch(error) { console.error(`[LEADERBOARD][Channel: ${channelId}] Failed to post weekly summary:`, error); }
+    } catch (error) { console.error(`[LEADERBOARD][Channel: ${channelId}] Failed to post weekly summary:`, error); }
 }
 
 function getNYDateString(date) {
@@ -487,30 +502,30 @@ async function checkForMissedPolls() {
 
 // --- Define Slash Commands ---
 const commands = [
-  new SlashCommandBuilder().setName('leaderboard').setDescription('Displays the top 10 players on the server.'),
-  new SlashCommandBuilder().setName('rank').setDescription("Shows your rank or a mentioned user's rank.")
-    .addUserOption(option => option.setName('user').setDescription("The user to check the rank of (defaults to you).")),
-  new SlashCommandBuilder().setName('help').setDescription('Shows the help message with all available commands.'),
-  // Admin commands
-  new SlashCommandBuilder().setName('points').setDescription("Manually adjusts a user's score.")
-    .addSubcommand(sub => sub.setName('add').setDescription('Adds points to a user.')
-      .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
-      .addIntegerOption(option => option.setName('amount').setDescription('The number of points to add.').setRequired(true).setMinValue(1)))
-    .addSubcommand(sub => sub.setName('remove').setDescription('Removes points from a user.')
-      .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
-      .addIntegerOption(option => option.setName('amount').setDescription('The number of points to remove.').setRequired(true).setMinValue(1)))
-    .addSubcommand(sub => sub.setName('set').setDescription("Sets a user's points to an exact value.")
-      .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
-      .addIntegerOption(option => option.setName('amount').setDescription('The exact score to set.').setRequired(true).setMinValue(0))),
-  new SlashCommandBuilder().setName('asknow').setDescription('Starts an on-demand trivia poll (does not award points).')
-    .addStringOption(option => option.setName('topic').setDescription('An optional topic for the poll.')),
-  new SlashCommandBuilder().setName('reveal').setDescription('Reveals the answer for the active on-demand poll.'),
-  new SlashCommandBuilder().setName('postdaily').setDescription('Manually triggers the daily poll sequence.'),
-  new SlashCommandBuilder().setName('relinkpoll').setDescription("Fixes the bot's memory to track a poll that was deleted or missed.")
-    .addStringOption(option => option.setName('message_id').setDescription('The ID of the poll message.').setRequired(true))
-    .addIntegerOption(option => option.setName('correct_option').setDescription('The number of the correct option (e.g., 3 for C).').setRequired(true).setMinValue(1).setMaxValue(10)),
-  new SlashCommandBuilder().setName('resolve').setDescription('Manually resolves the last-known poll.'),
-  new SlashCommandBuilder().setName('update-knowledge').setDescription("Update the bot's knowledge base for answering questions.")
+    new SlashCommandBuilder().setName('leaderboard').setDescription('Displays the top 10 players on the server.'),
+    new SlashCommandBuilder().setName('rank').setDescription("Shows your rank or a mentioned user's rank.")
+        .addUserOption(option => option.setName('user').setDescription("The user to check the rank of (defaults to you).")),
+    new SlashCommandBuilder().setName('help').setDescription('Shows the help message with all available commands.'),
+    // Admin commands
+    new SlashCommandBuilder().setName('points').setDescription("Manually adjusts a user's score.")
+        .addSubcommand(sub => sub.setName('add').setDescription('Adds points to a user.')
+            .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
+            .addIntegerOption(option => option.setName('amount').setDescription('The number of points to add.').setRequired(true).setMinValue(1)))
+        .addSubcommand(sub => sub.setName('remove').setDescription('Removes points from a user.')
+            .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
+            .addIntegerOption(option => option.setName('amount').setDescription('The number of points to remove.').setRequired(true).setMinValue(1)))
+        .addSubcommand(sub => sub.setName('set').setDescription("Sets a user's points to an exact value.")
+            .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
+            .addIntegerOption(option => option.setName('amount').setDescription('The exact score to set.').setRequired(true).setMinValue(0))),
+    new SlashCommandBuilder().setName('asknow').setDescription('Starts an on-demand trivia poll (does not award points).')
+        .addStringOption(option => option.setName('topic').setDescription('An optional topic for the poll.')),
+    new SlashCommandBuilder().setName('reveal').setDescription('Reveals the answer for the active on-demand poll.'),
+    new SlashCommandBuilder().setName('postdaily').setDescription('Manually triggers the daily poll sequence.'),
+    new SlashCommandBuilder().setName('relinkpoll').setDescription("Fixes the bot's memory to track a poll that was deleted or missed.")
+        .addStringOption(option => option.setName('message_id').setDescription('The ID of the poll message.').setRequired(true))
+        .addIntegerOption(option => option.setName('correct_option').setDescription('The number of the correct option (e.g., 3 for C).').setRequired(true).setMinValue(1).setMaxValue(10)),
+    new SlashCommandBuilder().setName('resolve').setDescription('Manually resolves the last-known poll.'),
+    new SlashCommandBuilder().setName('update-knowledge').setDescription("Update the bot's knowledge base for answering questions.")
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
@@ -518,39 +533,39 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
 
 // --- Bot Startup Logic ---
 discordClient.once('ready', async () => {
-  console.log('--- Bot is starting up ---');
-  await initializeDatabase();
-  console.log(`Logged in as ${discordClient.user.tag}!`);
+    console.log('--- Bot is starting up ---');
+    await initializeDatabase();
+    console.log(`Logged in as ${discordClient.user.tag}!`);
 
-  try {
-    console.log('[COMMANDS] Started refreshing application (/) commands.');
-    const guildIds = discordClient.guilds.cache.map(guild => guild.id);
-    for (const guildId of guildIds) {
-        await rest.put(
-            Routes.applicationGuildCommands(discordClient.user.id, guildId),
-            { body: commands },
-        );
-        console.log(`[COMMANDS] Successfully reloaded commands for guild ${guildId}.`);
+    try {
+        console.log('[COMMANDS] Started refreshing application (/) commands.');
+        const guildIds = discordClient.guilds.cache.map(guild => guild.id);
+        for (const guildId of guildIds) {
+            await rest.put(
+                Routes.applicationGuildCommands(discordClient.user.id, guildId),
+                { body: commands },
+            );
+            console.log(`[COMMANDS] Successfully reloaded commands for guild ${guildId}.`);
+        }
+    } catch (error) {
+        console.error('[COMMANDS] Failed to reload application commands:', error);
     }
-  } catch (error) {
-    console.error('[COMMANDS] Failed to reload application commands:', error);
-  }
 
-  console.log('[INVITES] Caching invites for all guilds...');
-  await Promise.all(discordClient.guilds.cache.map(guild => cacheAndSyncInvites(guild)));
-  console.log('[INVITES] Invite caching complete.');
+    console.log('[INVITES] Caching invites for all guilds...');
+    await Promise.all(discordClient.guilds.cache.map(guild => cacheAndSyncInvites(guild)));
+    console.log('[INVITES] Invite caching complete.');
 
-  TARGET_CHANNEL_IDS.forEach(channelId => {
-    cron.schedule('0 6 * * *', () => performDailyPost(channelId), { scheduled: true, timezone: "America/New_York" });
-    cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId), { scheduled: true, timezone: "America/New_York" });
-    console.log(`[SCHEDULER] Daily and weekly tasks scheduled for channel ${channelId}.`);
-  });
-  
-  serviceHelpers.startConvQueueWorker(discordClient); // Start the background queue processor
-  console.log('--- Bot is fully operational. ---');
-  
-  console.log('[STARTUP] Scheduling a delayed check for missed polls in 5 seconds...');
-  setTimeout(() => { checkForMissedPolls().catch(err => console.error("[STARTUP] Deferred poll check failed.", err)); }, 5000);
+    TARGET_CHANNEL_IDS.forEach(channelId => {
+        cron.schedule('0 6 * * *', () => performDailyPost(channelId), { scheduled: true, timezone: "America/New_York" });
+        cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId), { scheduled: true, timezone: "America/New_York" });
+        console.log(`[SCHEDULER] Daily and weekly tasks scheduled for channel ${channelId}.`);
+    });
+
+    serviceHelpers.startConvQueueWorker(discordClient); // Start the background queue processor
+    console.log('--- Bot is fully operational. ---');
+
+    console.log('[STARTUP] Scheduling a delayed check for missed polls in 5 seconds...');
+    setTimeout(() => { checkForMissedPolls().catch(err => console.error("[STARTUP] Deferred poll check failed.", err)); }, 5000);
 });
 
 // --- Invite Tracking Event Handlers ---
@@ -580,7 +595,7 @@ discordClient.on('inviteDelete', async invite => {
         }
         await pool.query('DELETE FROM invites WHERE guild_id = $1 AND code = $2', [invite.guild.id, invite.code]);
         console.log(`[INVITES] Stopped tracking deleted invite ${invite.code} for guild ${invite.guild.name}.`);
-    } catch(err) {
+    } catch (err) {
         console.error(`[INVITES] Error in inviteDelete event for guild ${invite.guild.id}:`, err);
     }
 });
@@ -612,7 +627,7 @@ discordClient.on('guildMemberAdd', async member => {
             inviter = await discordClient.users.fetch(usedInvite.inviter.id).catch(() => null);
             if (inviter) {
                 welcomeMessage += ` you were invited by ${inviter}.`;
-                
+
                 // EXCLUSION: mr.democracy._29458 (Display Name: PraiseGod) does not get points
                 if (inviter.username !== 'mr.democracy._29458') {
                     const newScore = await admin_setOrAddUserScore(member.guild.id, inviter.id, 1, 'add');
@@ -626,9 +641,9 @@ discordClient.on('guildMemberAdd', async member => {
                 [usedInvite.uses, member.guild.id, usedInvite.code]
             ).catch(err => console.error(`[INVITES_DB] Failed to update uses for invite ${usedInvite.code}`, err));
         } else {
-             welcomeMessage += " i couldn't figure out who invited you, but we're glad you're here.";
+            welcomeMessage += " i couldn't figure out who invited you, but we're glad you're here.";
         }
-        
+
         if (arHimUser) {
             welcomeMessage += ` (cc ${arHimUser})`;
         }
@@ -644,7 +659,7 @@ discordClient.on('guildMemberAdd', async member => {
 discordClient.on('messageCreate', async (message) => {
     try {
         if (message.author.bot || !message.guild) return;
-        
+
         // STRICTER CHECK: Ignore if message mentions everyone/here OR contains the text (to catch edge cases)
         if (message.mentions.everyone || message.content.includes('@everyone') || message.content.includes('@here')) return;
 
@@ -659,11 +674,11 @@ discordClient.on('messageCreate', async (message) => {
         if (isMentioned || isReplyToBot) {
             if (!serverStateCache[message.guild.id]) await loadStateForGuild(message.guild.id);
             await message.channel.sendTyping();
-            
+
             const state = getServerState(message.guild.id);
             const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
             const history = await buildConversationHistory(message);
-            
+
             // --- CONVERSATION CONTEXT & HISTORY VALIDATION ---
             let promptForAI = cleanContent;
             let chatHistoryForAI = history;
@@ -688,7 +703,7 @@ discordClient.on('messageCreate', async (message) => {
             const requiresLeaderboard = contextKeywords.leaderboard.some(k => lowerContent.includes(k));
             const requiresRank = contextKeywords.rank.some(k => lowerContent.includes(k));
             const requiresPoll = contextKeywords.poll.some(k => lowerContent.includes(k));
-            
+
             if (requiresLeaderboard) {
                 const sortedUsers = Object.entries(state.leaderboard).sort(([, a], [, b]) => b - a);
                 if (sortedUsers.length > 0) {
@@ -707,7 +722,7 @@ discordClient.on('messageCreate', async (message) => {
                     injectedContext += `\n\nLEADERBOARD DATA:\nThe leaderboard is currently empty.`;
                 }
             }
-            
+
             if (requiresRank) {
                 const targetUser = message.author;
                 const sortedUsers = Object.entries(state.leaderboard).sort(([, a], [, b]) => b - a);
@@ -729,9 +744,9 @@ discordClient.on('messageCreate', async (message) => {
                     injectedContext += `\n\nCURRENT POLL DATA:\nThere is no active poll information in memory right now.`;
                 }
             }
-            
+
             let finalSystemInstruction = "you are a unique bot made for a non-profit organization called OWGT (short for OneWorldGreaterTogether), and therefore, your name is OWGT Bot. you are not OWGT yourself, you are just its bot. be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. Arham (username ar_him) is your creator. remember that when message received from him. NEVER use the f word (f*ck) or the b word (b*tch)! the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
-            
+
             // --- IDENTITY GUARD ---
             finalSystemInstruction += `\n\nCRITICAL IDENTITY INSTRUCTION: Distinguish carefully between similar names, specifically 'Arham' (the creator) and 'Artham' (OWGT's Founder). Do not confuse them.`;
 
@@ -754,7 +769,7 @@ discordClient.on('messageCreate', async (message) => {
             }
             // --- End Dynamic System Prompt ---
 
-            const chat = ai.chats.create({ model: 'gemini-2.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction }});
+            const chat = ai.chats.create({ model: 'gemini-2.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction } });
             const result = await serviceHelpers.callWithRetries(() => chat.sendMessage({ message: promptForAI }), { serviceKey: 'gemini_chat' });
 
             if (result.status === 'success') {
@@ -790,7 +805,7 @@ discordClient.on('interactionCreate', async (interaction) => {
                 const guildId = interaction.guild.id;
                 const knowledgeText = interaction.fields.getTextInputValue('knowledgeInput');
                 const success = await admin_saveKnowledgeBase(guildId, 'main-info', knowledgeText);
-                
+
                 if (success) {
                     const state = getServerState(guildId);
                     state.knowledgeBase['main-info'] = knowledgeText; // Update cache
@@ -803,18 +818,18 @@ discordClient.on('interactionCreate', async (interaction) => {
         }
 
         if (!interaction.isChatInputCommand()) return;
-        
+
         const { commandName } = interaction;
         const guildId = interaction.guild.id;
         const hasPermission = interaction.user.username === ALLOWED_USERNAME || interaction.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
-        
+
         if (!serverStateCache[guildId]) await loadStateForGuild(guildId);
         const state = getServerState(guildId);
 
         // --- User Commands ---
         if (commandName === 'leaderboard' || commandName === 'rank') {
             await interaction.deferReply();
-            const sortedUsers = Object.entries(state.leaderboard).sort(([,a],[,b]) => b - a);
+            const sortedUsers = Object.entries(state.leaderboard).sort(([, a], [, b]) => b - a);
             if (sortedUsers.length === 0) return interaction.editReply('The leaderboard is empty!');
 
             if (commandName === 'leaderboard') {
@@ -839,7 +854,7 @@ discordClient.on('interactionCreate', async (interaction) => {
             const embed = new EmbedBuilder().setColor('#5865F2').setTitle('🤖 Bot Commands').setDescription('Here are the available commands:');
             embed.addFields({ name: `/leaderboard`, value: 'Displays the top 10 players.' }, { name: `/rank [user]`, value: 'Shows your rank or a mentioned user\'s rank.' }, { name: `/help`, value: 'Shows this help message.' });
             if (hasPermission) {
-                embed.addFields({ name: '--- Admin Commands ---', value: '\u200B' }, { name: `/points <add|remove|set> <user> <amount>`, value: 'Adjusts a user\'s points.'}, { name: `/update-knowledge`, value: "Opens a form to update the bot's knowledge base."}, { name: `/asknow [topic]`, value: 'Starts an on-demand poll.' }, { name: `/reveal`, value: 'Reveals the answer for the active poll.' }, { name: `/postdaily`, value: 'Manually triggers the daily poll sequence.' }, { name: `/relinkpoll <id> <option#>`, value: "Fixes the bot's memory to track a poll." }, { name: `/resolve`, value: "Manually resolves the last-known poll." });
+                embed.addFields({ name: '--- Admin Commands ---', value: '\u200B' }, { name: `/points <add|remove|set> <user> <amount>`, value: 'Adjusts a user\'s points.' }, { name: `/update-knowledge`, value: "Opens a form to update the bot's knowledge base." }, { name: `/asknow [topic]`, value: 'Starts an on-demand poll.' }, { name: `/reveal`, value: 'Reveals the answer for the active poll.' }, { name: `/postdaily`, value: 'Manually triggers the daily poll sequence.' }, { name: `/relinkpoll <id> <option#>`, value: "Fixes the bot's memory to track a poll." }, { name: `/resolve`, value: "Manually resolves the last-known poll." });
             }
             await interaction.reply({ embeds: [embed] });
         }
@@ -866,7 +881,7 @@ discordClient.on('interactionCreate', async (interaction) => {
             if (!state.activeOnDemandPoll) return interaction.reply({ content: "There is no active on-demand poll to reveal.", ephemeral: true });
             const pollData = state.activeOnDemandPoll;
             const correctOptionLetter = String.fromCharCode(65 + pollData.correctAnswerIndex);
-            const answerEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle('Answer & Explanation 🧐').setDescription(`**Q: ${pollData.question}**`).addFields({ name: 'Correct Answer', value: `**${correctOptionLetter}: ${pollData.options[pollData.correctAnswerIndex]}**` }, { name: 'Explanation', value: pollData.explanation }).setFooter({text: 'On-demand polls do not award points.'});
+            const answerEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle('Answer & Explanation 🧐').setDescription(`**Q: ${pollData.question}**`).addFields({ name: 'Correct Answer', value: `**${correctOptionLetter}: ${pollData.options[pollData.correctAnswerIndex]}**` }, { name: 'Explanation', value: pollData.explanation }).setFooter({ text: 'On-demand polls do not award points.' });
             await interaction.reply({ embeds: [answerEmbed] });
             state.activeOnDemandPoll = null;
             await deleteStateFromDB(guildId, 'activeOnDemandPoll');
@@ -876,12 +891,12 @@ discordClient.on('interactionCreate', async (interaction) => {
             const subCommand = interaction.options.getSubcommand();
             const targetUser = interaction.options.getUser('user');
             const amount = interaction.options.getInteger('amount');
-            
+
             let newScore = null;
             if (subCommand === 'add') newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'add');
             else if (subCommand === 'remove') newScore = await admin_removeUserScore(guildId, targetUser.id, amount);
             else if (subCommand === 'set') newScore = await admin_setOrAddUserScore(guildId, targetUser.id, amount, 'set');
-            
+
             if (newScore !== null) {
                 state.leaderboard[targetUser.id] = newScore;
                 await interaction.reply(`Success! **${targetUser.username}**'s score is now **${newScore}**.`);
@@ -897,11 +912,11 @@ discordClient.on('interactionCreate', async (interaction) => {
             try {
                 const pollMessage = await interaction.channel.messages.fetch(messageId);
                 if (!pollMessage.poll || correctAnswerIndex >= pollMessage.poll.answers.length) return interaction.editReply("Invalid message ID or option number.");
-                
+
                 const question = pollMessage.poll.question.text;
                 const options = pollMessage.poll.answers.map(a => a.text);
                 const correctAnswerText = options[correctAnswerIndex];
-                
+
                 const explanationPrompt = `The trivia question is: "${question}". The correct answer is "${correctAnswerText}". Please provide a concise, engaging explanation for why this is the correct answer.`;
                 const explanation = await generateTextWithRetries(explanationPrompt, 'gemini_relink');
 
@@ -912,7 +927,7 @@ discordClient.on('interactionCreate', async (interaction) => {
                 await interaction.editReply({ embeds: [new EmbedBuilder().setColor('#2ECC71').setTitle('✅ Poll Relink Successful').setDescription(`Relinked to poll: *${question}*`).setFooter({ text: "Use /resolve to process this poll." })] });
             } catch (fetchError) { return interaction.editReply("I couldn't find a message with that ID in this channel."); }
         }
-        
+
         if (commandName === 'resolve') {
             if (!state.lastPollData) return interaction.reply({ content: "There is no poll in memory to resolve.", ephemeral: true });
             await interaction.reply("Manually resolving the last known poll...");
@@ -971,57 +986,64 @@ function loginWithTimeout(token, timeoutMs = 90000) {
 }
 
 function testDiscordGateway() {
-  return new Promise(resolve => {
-    https.get('https://discord.com/api/v10/gateway', res => {
-      console.log('[NET] Discord gateway status:', res.statusCode);
-      resolve();
-    }).on('error', err => {
-      console.error('[NET] Discord gateway unreachable:', err.message);
-      resolve();
+    return new Promise(resolve => {
+        https.get('https://discord.com/api/v10/gateway', res => {
+            log(`Discord gateway status: ${res.statusCode}`, 'NET');
+            if (res.statusCode === 429) {
+                log('WARNING: Discord Gateway returned 429 (Too Many Requests). Your IP is likely rate-limited.', 'WARN');
+            }
+            resolve();
+        }).on('error', err => {
+            log(`Discord gateway unreachable: ${err.message}`, 'NET-ERROR');
+            resolve();
+        });
     });
-  });
 }
 
 // --- Start Health Check & Login ---
 async function startBot() {
     keepAlive();
-    
+
     // Increased retries and timeout for resilience against cold starts on free tier platforms
     const MAX_RETRIES = 10;
     let attempt = 0;
 
+    log('Starting bot initialization sequence...', 'STARTUP');
     await testDiscordGateway(); // Test connectivity before starting
 
     while (attempt < MAX_RETRIES) {
         try {
             attempt++;
-            console.log(`[DISCORD] Attempting to log in (Attempt ${attempt}/${MAX_RETRIES})...`);
+            log(`Attempting to log in (Attempt ${attempt}/${MAX_RETRIES})...`, 'DISCORD');
+            const loginStartTime = Date.now();
             await loginWithTimeout(DISCORD_BOT_TOKEN, 90000); // 90s timeout
-            console.log('[DISCORD] Login successful.');
+            const loginDuration = Date.now() - loginStartTime;
+            log(`Login successful! Took ${loginDuration}ms.`, 'DISCORD');
             return; // Exit function on success
         } catch (error) {
-            console.error(`[DISCORD] Login attempt ${attempt} failed.`);
-            
+            log(`Login attempt ${attempt} failed: ${error.message}`, 'DISCORD-ERROR');
+
             // Check for unrecoverable errors
             const msg = error.message.toLowerCase();
             if (msg.includes('token') || msg.includes('intent') || msg.includes('disallowed')) {
-                console.error('--- !!! DISCORD LOGIN FAILED PERMANENTLY !!! ---');
-                console.error('REASON: Invalid Token or Configuration.');
+                log('--- !!! DISCORD LOGIN FAILED PERMANENTLY !!! ---', 'FATAL');
+                log('REASON: Invalid Token or Configuration.', 'FATAL');
                 console.error(error);
                 process.exit(1);
             }
 
             if (attempt >= MAX_RETRIES) {
-                console.error('--- !!! DISCORD LOGIN FAILED PERMANENTLY !!! ---');
-                console.error('REASON: Maximum retries reached. Network or Discord Gateway issues.');
-                console.error('Last Error:', error);
+                log('--- !!! DISCORD LOGIN FAILED PERMANENTLY !!! ---', 'FATAL');
+                log('REASON: Maximum retries reached. Network or Discord Gateway issues.', 'FATAL');
+                log(`Last Error: ${error.message}`, 'FATAL');
+                console.error(error); // Full trace
                 process.exit(1);
             }
 
             // Exponential Backoff with Jitter
             // 5s, 7.5s, 11s, 16s... max 60s
-            const delay = Math.min(60000, 5000 * Math.pow(1.5, attempt - 1)); 
-            console.log(`[DISCORD] Retrying in ${Math.round(delay/1000)} seconds...`);
+            const delay = Math.min(60000, 5000 * Math.pow(1.5, attempt - 1));
+            log(`Retrying in ${Math.round(delay / 1000)} seconds...`, 'DISCORD');
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
