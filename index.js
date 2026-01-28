@@ -1004,8 +1004,8 @@ function testDiscordGateway() {
 async function startBot() {
     keepAlive();
 
-    // Increased retries and timeout for resilience against cold starts on free tier platforms
-    const MAX_RETRIES = 10;
+    // Reduced retries to 5, with steeper backoff
+    const MAX_RETRIES = 5;
     let attempt = 0;
 
     log('Starting bot initialization sequence...', 'STARTUP');
@@ -1040,9 +1040,8 @@ async function startBot() {
                 process.exit(1);
             }
 
-            // Exponential Backoff with Jitter
-            // 5s, 7.5s, 11s, 16s... max 60s
-            const delay = Math.min(60000, 5000 * Math.pow(1.5, attempt - 1));
+            // Exponential Backoff: 5s, 10s, 20s, 40s...
+            const delay = 5000 * Math.pow(2, attempt - 1);
             log(`Retrying in ${Math.round(delay / 1000)} seconds...`, 'DISCORD');
             await new Promise(resolve => setTimeout(resolve, delay));
         }
