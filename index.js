@@ -1040,8 +1040,10 @@ async function startBot() {
                 process.exit(1);
             }
 
-            // Exponential Backoff: 5s, 10s, 20s, 40s...
-            const delay = 5000 * Math.pow(2, attempt - 1);
+            // Custom Backoff Schedule: 10s, 30s, 60s, 120s, 300s
+            const delays = [10000, 30000, 60000, 120000, 300000];
+            const delay = delays[attempt - 1] || 300000; // Default to 300s if out of bounds
+
             log(`Retrying in ${Math.round(delay / 1000)} seconds...`, 'DISCORD');
             await new Promise(resolve => setTimeout(resolve, delay));
         }
