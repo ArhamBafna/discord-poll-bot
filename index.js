@@ -114,6 +114,8 @@ const FALLBACK_POLLS = [
 const serverStateCache = {};
 const postingLock = new Set(); // Prevents concurrent poll posting
 const inviteCache = new Map(); // In-memory cache for server invites { guildId: Map<inviteCode, uses> }
+const channelOverloadState = {}; // { channelId: timestamp }
+const OVERLOAD_COOLDOWN_MS = 30000;
 
 // --- Database Functions ---
 async function initializeDatabase() {
@@ -672,6 +674,22 @@ discordClient.on('messageCreate', async (message) => {
         message.isReplyToBot = isReplyToBot; // Attach for queue worker
 
         if (isMentioned || isReplyToBot) {
+            // --- OVERLOAD CHECK (CANT Reaction Logic) ---
+            if (channelOverloadState[message.channel.id]) {
+                if (Date.now() - channelOverloadState[message.channel.id] < OVERLOAD_COOLDOWN_MS) {
+                    // Overloaded: React visually to indicate inability to process
+                    try {
+                        await message.react('🇨');
+                        await message.react('🇦');
+                        await message.react('🇳');
+                        await message.react('🇹');
+                    } catch (e) { console.error(`[OVERLOAD] Failed to react in ${message.channel.id}`, e); }
+                    return;
+                } else {
+                    delete channelOverloadState[message.channel.id]; // Cooldown expired, clear flag
+                }
+            }
+
             if (!serverStateCache[message.guild.id]) await loadStateForGuild(message.guild.id);
             await message.channel.sendTyping();
 
@@ -780,7 +798,11 @@ discordClient.on('messageCreate', async (message) => {
                 if (position) {
                     await message.reply(`i'm a bit overloaded — i saved your request to a short queue and will reply here when i can. (position #${position})`);
                 } else {
-                    await message.reply("i'm overloaded right now and my queue is full. please try again in a minute.");
+                    // Queue is full: Set overload state if not already set
+                    if (!channelOverloadState[message.channel.id]) {
+                        channelOverloadState[message.channel.id] = Date.now();
+                        await message.reply("i'm overloaded right now and my queue is full. please try again in 30 seconds.");
+                    }
                 }
             }
             return;
