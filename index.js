@@ -2,7 +2,7 @@
 
 // A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and a fully automatic community leaderboard system with weekly summaries.
-// Version: 7.0 (Slash Commands & Interactive KB)
+// Version: 7.2 (Slash Commands, Interactive KB, Spam Protection & Stability Fixes)
 
 // --- Network Hardening & IPv4 Enforcement ---
 const dns = require('dns');
@@ -110,12 +110,14 @@ const FALLBACK_POLLS = [
     { type: 'trivia', question: "ai?", options: ["not ai", "ai", "not artificial intelligence", "option 5"], correctAnswerIndex: 2, explanation: "Neural Networks are computational models inspired by the human brain's structure. They are designed to recognize complex patterns in data, making them powerful tools for tasks like image recognition, natural language processing, and forecasting." }
 ];
 
-// --- State Management: In-memory cache for performance, keyed by Guild (Server) ID ---
+// --- State Management ---
 const serverStateCache = {};
 const postingLock = new Set(); // Prevents concurrent poll posting
 const inviteCache = new Map(); // In-memory cache for server invites { guildId: Map<inviteCode, uses> }
-const channelOverloadState = {}; // { channelId: timestamp }
-const OVERLOAD_COOLDOWN_MS = 30000;
+const channelOverloadState = {}; // { channelId: timestamp } of GLOBAL overload (CANT reaction)
+const OVERLOAD_COOLDOWN_MS = 60000; // 1 minute of global silence if triggered
+const userCooldowns = new Map(); // { userId: timestamp }
+const USER_COOLDOWN_MS = 4000; // 4 seconds between messages per user
 
 // --- Database Functions ---
 async function initializeDatabase() {
@@ -143,7 +145,7 @@ function getServerState(guildId) {
 }
 
 async function loadStateForGuild(guildId) {
-    console.log(`[STATE] Loading state from DB for server ${guildId}...`);
+    // console.log(`[STATE] Loading state from DB for server ${guildId}...`);
     const state = getServerState(guildId);
     const client = await pool.connect();
     try {
@@ -165,7 +167,7 @@ async function loadStateForGuild(guildId) {
         state.knowledgeBase = {};
         knowledgeRes.rows.forEach(row => { state.knowledgeBase[row.key] = row.value; });
 
-        console.log(`[STATE] State loaded for guild ${guildId}: lastPollData is ${state.lastPollData ? 'present' : 'null'}`);
+        // console.log(`[STATE] State loaded for guild ${guildId}.`);
     } catch (error) {
         console.error(`[STATE] CRITICAL ERROR loading state for server ${guildId}:`, error);
     } finally {
@@ -247,7 +249,7 @@ async function cacheAndSyncInvites(guild) {
             client.release();
         }
         inviteCache.set(guild.id, new Map(invites.map(inv => [inv.code, inv.uses])));
-        console.log(`[INVITES] Synced and cached ${invites.size} invites for guild ${guild.name}.`);
+        // console.log(`[INVITES] Synced and cached ${invites.size} invites for guild ${guild.name}.`);
     } catch (err) {
         console.error(`[INVITES] Failed to sync invites for guild ${guild.name} (${guild.id}).`, err.message.includes('Missing Access') ? 'Missing Permissions.' : err);
     }
@@ -256,24 +258,24 @@ async function cacheAndSyncInvites(guild) {
 // --- Gemini API Schemas (Stateless) ---
 const triviaPollSchema = { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, minItems: 4, maxItems: 4 }, correctAnswerIndex: { type: Type.INTEGER }, explanation: { type: Type.STRING } }, required: ["question", "options", "correctAnswerIndex", "explanation"] };
 
-// --- Gemini API Generation Functions (Now using central resilience helper) ---
+// --- Gemini API Generation Functions ---
 
 async function generateTextWithRetries(prompt, serviceKey = 'gemini') {
     const result = await serviceHelpers.callWithRetries(
         () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt }),
-        { serviceKey }
+        { serviceKey, maxAttempts: 2, timeoutMs: 10000 }
     );
     if (result.status === 'success') {
         return result.data.text.trim();
     }
-    console.error(`[GEMINI] Failed to generate text for service ${serviceKey} after all attempts.`);
+    console.error(`[GEMINI] Failed to generate text for service ${serviceKey}.`);
     return null;
 }
 
 async function generatePollWithRetries(prompt, schema, temperature, serviceKey = 'gemini_poll') {
     const result = await serviceHelpers.callWithRetries(
         () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema, temperature: temperature } }),
-        { serviceKey, timeoutMs: 60000 } // Increased timeout for schema-based generation
+        { serviceKey, timeoutMs: 20000, maxAttempts: 3 }
     );
 
     if (result.status === 'success') {
@@ -284,7 +286,7 @@ async function generatePollWithRetries(prompt, schema, temperature, serviceKey =
             return { status: 'error', permanent: true, error: parseError };
         }
     }
-    return result; // Return the full failure object { status, error, permanent }
+    return result;
 }
 
 async function generateTriviaPoll(topic = '', history = []) {
@@ -351,7 +353,8 @@ async function resolveLastPoll(channel) {
             if (!pollMessage.poll) return false;
             const correctAnswer = pollMessage.poll.answers.at(state.lastPollData.correctAnswerIndex);
             if (!correctAnswer) return false;
-            const voters = await correctAnswer.fetchVoters();
+            // FIX: fetchVoters is deprecated in newer discord.js versions
+            const voters = await correctAnswer.voters.fetch();
             const winnerIds = Array.from(voters.values()).filter(u => !u.bot).map(u => u.id);
             const winnerUsernames = Array.from(voters.values()).filter(u => !u.bot).map(u => u.username);
 
@@ -406,10 +409,8 @@ async function performDailyPost(channelId, isCatchUp = false) {
             usedFallback = true;
             const lastPoll = state.lastSuccessfulPoll;
             if (lastPoll && lastPoll.type === 'trivia') {
-                console.log(`[POLL][FALLBACK] Using last successful poll as fallback.`);
                 newPollData = { ...lastPoll, isFallback: true };
             } else {
-                console.log(`[POLL][FALLBACK] No last successful trivia poll found. Using a static fallback.`);
                 newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], isFallback: true };
             }
         } else {
@@ -418,7 +419,7 @@ async function performDailyPost(channelId, isCatchUp = false) {
 
         if (newPollData) {
             newPollData.type = 'trivia'; // All polls are now trivia
-            let pollIntroMessage = isCatchUp ? "Oops, forgot to post the poll today! Here it is... 😅" : "@everyone **Today's AI Poll!** 🧠";
+            let pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll! 😅" : "@everyone **Today's AI Poll!** 🧠";
             if (usedFallback) pollIntroMessage += `\n*(posted using fallback because the AI service was unavailable)*`;
 
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
@@ -477,10 +478,14 @@ function getNYDateString(date) {
 }
 
 async function checkForMissedPolls() {
-    console.log('[STARTUP] Checking for any missed daily polls...');
+    console.log('[STARTUP] Checking for missed daily polls...');
     const now = new Date();
     const currentHourNY = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }).format(now), 10);
-    if (currentHourNY < 6) return;
+    // If it's before 6 AM NY time, we shouldn't have posted yet anyway.
+    if (currentHourNY < 6) {
+        console.log('[STARTUP] Before 6AM NY time, no catch-up needed.');
+        return;
+    }
 
     const checkPromises = TARGET_CHANNEL_IDS.map(async (channelId) => {
         try {
@@ -489,12 +494,22 @@ async function checkForMissedPolls() {
             const guildId = channel.guild.id;
             await loadStateForGuild(guildId);
             const state = getServerState(guildId);
+            
+            // Check if we have data for TODAY (NY time)
             if (!state.lastPollData || !state.lastPollData.createdAt || isNaN(new Date(state.lastPollData.createdAt))) {
+                console.log(`[STARTUP] No previous valid poll found. Catching up for ${channel.name}.`);
                 await performDailyPost(channelId, true);
                 return;
             }
-            if (getNYDateString(new Date(state.lastPollData.createdAt)) !== getNYDateString(now)) {
+            
+            const lastPollDateStr = getNYDateString(new Date(state.lastPollData.createdAt));
+            const todayDateStr = getNYDateString(now);
+
+            if (lastPollDateStr !== todayDateStr) {
+                console.log(`[STARTUP] Last poll was from ${lastPollDateStr}, but today is ${todayDateStr}. Catching up for ${channel.name}.`);
                 await performDailyPost(channelId, true);
+            } else {
+                console.log(`[STARTUP] Poll for today (${todayDateStr}) already exists in ${channel.name}. No action needed.`);
             }
         } catch (error) { console.error(`[STARTUP] CRITICAL ERROR during catch-up check for channel ${channelId}:`, error); }
     });
@@ -502,7 +517,7 @@ async function checkForMissedPolls() {
     console.log('[STARTUP] Missed poll check complete.');
 }
 
-// --- Define Slash Commands ---
+// --- Slash Commands Setup ---
 const commands = [
     new SlashCommandBuilder().setName('leaderboard').setDescription('Displays the top 10 players on the server.'),
     new SlashCommandBuilder().setName('rank').setDescription("Shows your rank or a mentioned user's rank.")
@@ -540,34 +555,32 @@ discordClient.once('ready', async () => {
     console.log(`Logged in as ${discordClient.user.tag}!`);
 
     try {
-        console.log('[COMMANDS] Started refreshing application (/) commands.');
         const guildIds = discordClient.guilds.cache.map(guild => guild.id);
         for (const guildId of guildIds) {
             await rest.put(
                 Routes.applicationGuildCommands(discordClient.user.id, guildId),
                 { body: commands },
             );
-            console.log(`[COMMANDS] Successfully reloaded commands for guild ${guildId}.`);
         }
+        console.log(`[COMMANDS] Refreshed slash commands.`);
     } catch (error) {
         console.error('[COMMANDS] Failed to reload application commands:', error);
     }
 
-    console.log('[INVITES] Caching invites for all guilds...');
+    console.log('[INVITES] Caching invites...');
     await Promise.all(discordClient.guilds.cache.map(guild => cacheAndSyncInvites(guild)));
-    console.log('[INVITES] Invite caching complete.');
 
     TARGET_CHANNEL_IDS.forEach(channelId => {
         cron.schedule('0 6 * * *', () => performDailyPost(channelId), { scheduled: true, timezone: "America/New_York" });
         cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId), { scheduled: true, timezone: "America/New_York" });
-        console.log(`[SCHEDULER] Daily and weekly tasks scheduled for channel ${channelId}.`);
+        console.log(`[SCHEDULER] Daily/Weekly tasks scheduled for ${channelId}.`);
     });
 
     serviceHelpers.startConvQueueWorker(discordClient); // Start the background queue processor
     console.log('--- Bot is fully operational. ---');
 
-    console.log('[STARTUP] Scheduling a delayed check for missed polls in 5 seconds...');
-    setTimeout(() => { checkForMissedPolls().catch(err => console.error("[STARTUP] Deferred poll check failed.", err)); }, 5000);
+    console.log('[STARTUP] Scheduling catch-up check in 5 seconds...');
+    setTimeout(() => { checkForMissedPolls().catch(err => console.error("[STARTUP] Catch-up check failed.", err)); }, 5000);
 });
 
 // --- Invite Tracking Event Handlers ---
@@ -583,7 +596,6 @@ discordClient.on('inviteCreate', async invite => {
             `INSERT INTO invites (guild_id, code, inviter_id, uses) VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, code) DO NOTHING`,
             [invite.guild.id, invite.code, invite.inviter.id, invite.uses]
         );
-        console.log(`[INVITES] Tracked new invite ${invite.code} for guild ${invite.guild.name}.`);
     } catch (err) {
         console.error(`[INVITES] Error in inviteCreate event for guild ${invite.guild.id}:`, err);
     }
@@ -596,7 +608,6 @@ discordClient.on('inviteDelete', async invite => {
             guildInvites.delete(invite.code);
         }
         await pool.query('DELETE FROM invites WHERE guild_id = $1 AND code = $2', [invite.guild.id, invite.code]);
-        console.log(`[INVITES] Stopped tracking deleted invite ${invite.code} for guild ${invite.guild.name}.`);
     } catch (err) {
         console.error(`[INVITES] Error in inviteDelete event for guild ${invite.guild.id}:`, err);
     }
@@ -606,7 +617,6 @@ discordClient.on('guildMemberAdd', async member => {
     try {
         const cachedInvites = inviteCache.get(member.guild.id);
         if (!cachedInvites) {
-            console.log(`[INVITES] No cached invites for guild ${member.guild.id} during guildMemberAdd. Awaiting next sync.`);
             return;
         }
 
@@ -617,7 +627,6 @@ discordClient.on('guildMemberAdd', async member => {
 
         const welcomeChannel = member.guild.systemChannel;
         if (!welcomeChannel || !welcomeChannel.permissionsFor(member.guild.members.me).has('SendMessages')) {
-            console.log(`[INVITES] No system channel or permissions to send welcome message in ${member.guild.name}.`);
             return;
         }
 
@@ -629,8 +638,6 @@ discordClient.on('guildMemberAdd', async member => {
             inviter = await discordClient.users.fetch(usedInvite.inviter.id).catch(() => null);
             if (inviter) {
                 welcomeMessage += ` you were invited by ${inviter}.`;
-
-                // EXCLUSION: mr.democracy._29458 (Display Name: PraiseGod) does not get points
                 if (inviter.username !== 'mr.democracy._29458') {
                     const newScore = await admin_setOrAddUserScore(member.guild.id, inviter.id, 1, 'add');
                     if (newScore !== null) {
@@ -674,19 +681,28 @@ discordClient.on('messageCreate', async (message) => {
         message.isReplyToBot = isReplyToBot; // Attach for queue worker
 
         if (isMentioned || isReplyToBot) {
-            // --- OVERLOAD CHECK (CANT Reaction Logic) ---
+            
+            // --- 1. USER SPAM PROTECTION (Individual Cooldown) ---
+            const lastUserMsg = userCooldowns.get(message.author.id);
+            if (lastUserMsg && Date.now() - lastUserMsg < USER_COOLDOWN_MS) {
+                // User is sending messages too fast (faster than 1 per 4 seconds)
+                try {
+                    await message.react('⏳');
+                } catch (e) {}
+                return; // Ignore this message completely
+            }
+            userCooldowns.set(message.author.id, Date.now());
+
+            // --- 2. GLOBAL CHANNEL OVERLOAD (Queue Overflow Check) ---
+            // Only triggered if the bot's internal queue physically cannot accept more jobs.
             if (channelOverloadState[message.channel.id]) {
                 if (Date.now() - channelOverloadState[message.channel.id] < OVERLOAD_COOLDOWN_MS) {
-                    // Overloaded: React visually to indicate inability to process
                     try {
-                        await message.react('🇨');
-                        await message.react('🇦');
-                        await message.react('🇳');
-                        await message.react('🇹');
-                    } catch (e) { console.error(`[OVERLOAD] Failed to react in ${message.channel.id}`, e); }
+                        await message.react('🇨'); await message.react('🇦'); await message.react('🇳'); await message.react('🇹');
+                    } catch (e) {}
                     return;
                 } else {
-                    delete channelOverloadState[message.channel.id]; // Cooldown expired, clear flag
+                    delete channelOverloadState[message.channel.id]; // Cooldown expired, reset
                 }
             }
 
@@ -705,7 +721,7 @@ discordClient.on('messageCreate', async (message) => {
                 const botContext = history[0].parts[0].text;
                 promptForAI = `(The user is replying to your previous message, which said: "${botContext}")\n\nTheir new message is: "${cleanContent}"`;
                 chatHistoryForAI = [];
-                console.log('[CONV_HANDLER] Corrected invalid history by merging model context into prompt.');
+                // console.log('[CONV_HANDLER] Corrected invalid history by merging model context into prompt.');
             }
 
             // --- DYNAMIC CONTEXT INJECTION & SYSTEM PROMPT ---
@@ -778,7 +794,6 @@ discordClient.on('messageCreate', async (message) => {
             const kbData = state.knowledgeBase['main-info'];
             if (kbData) {
                 // We inject the entire 'main-info' block up to 40,000 characters.
-                // This replaces the heuristic search, ensuring the AI *always* knows this info.
                 finalSystemInstruction += `\n\nCONTEXT FROM KNOWLEDGE BASE (Use this to answer questions about the organization/team):\n${kbData.slice(0, 40000)}\nEND CONTEXT.`;
             }
 
@@ -787,8 +802,11 @@ discordClient.on('messageCreate', async (message) => {
             }
             // --- End Dynamic System Prompt ---
 
-            const chat = ai.chats.create({ model: 'gemini-2.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction } });
-            const result = await serviceHelpers.callWithRetries(() => chat.sendMessage({ message: promptForAI }), { serviceKey: 'gemini_chat' });
+            // Attempt to send immediately. If circuit is open or error, enqueue it.
+            const result = await serviceHelpers.callWithRetries(
+                () => ai.chats.create({ model: 'gemini-2.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction } }).sendMessage({ message: promptForAI }),
+                { serviceKey: 'gemini_chat', maxAttempts: 2, timeoutMs: 8000 } // Fail faster to queue faster
+            );
 
             if (result.status === 'success') {
                 await message.reply(result.data.text.trim().toLowerCase());
@@ -798,10 +816,10 @@ discordClient.on('messageCreate', async (message) => {
                 if (position) {
                     await message.reply(`i'm a bit overloaded — i saved your request to a short queue and will reply here when i can. (position #${position})`);
                 } else {
-                    // Queue is full: Set overload state if not already set
+                    // Queue is full: Set GLOBAL channel overload state
                     if (!channelOverloadState[message.channel.id]) {
                         channelOverloadState[message.channel.id] = Date.now();
-                        await message.reply("i'm overloaded right now and my queue is full. please try again in 30 seconds.");
+                        await message.reply("i'm completely overloaded right now. please try again in a minute.");
                     }
                 }
             }
@@ -961,7 +979,9 @@ discordClient.on('interactionCreate', async (interaction) => {
         }
 
         if (commandName === 'postdaily') {
-            await interaction.reply("Manually triggering the daily poll process...");
+            // FIX: Use deferReply to prevent 'Unknown Interaction' errors if the bot wakes up slowly or processing takes >3s.
+            await interaction.deferReply();
+            await interaction.editReply("Manually triggering the daily poll process...");
             await performDailyPost(interaction.channel.id, true);
         }
 
