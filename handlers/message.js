@@ -12,6 +12,16 @@ const USER_COOLDOWN_MS = 4000; // 4 seconds between messages per user
 const channelOverloadState = {}; // { channelId: timestamp } of GLOBAL overload (CANT reaction)
 const OVERLOAD_COOLDOWN_MS = 60000; // 1 minute of global silence if triggered
 
+// --- PROACTIVE ENGAGEMENT SETTINGS ---
+const passiveJumps = new Map(); // { channelId: timestamp } of last proactive jump
+const JUMP_COOLDOWN_MS = 1800000; // 30 minutes cooldown between proactive jumps per channel
+const JUMP_PROBABILITY = 0.72; // 72% chance to jump in if keywords match
+const PASSIVE_KEYWORDS = [
+    'ai', 'artificial intelligence', 'llm', 'machine learning', 'gpt', 'gemini', 'claude', 'openai', 'anthropic', 'bot', 'automation',
+    'owgt', 'oneworldgreatertogether', 'one world greater together', 'arham', 'artham', 'non-profit', 'education',
+    'poll', 'leaderboard', 'points', 'trivia', 'question', 'answer', 'rank', 'score', 'winner'
+];
+
 async function handleMessageCreate(message, discordClient) {
     try {
         if (message.author.bot || !message.guild) return;
@@ -27,29 +37,47 @@ async function handleMessageCreate(message, discordClient) {
         }
         message.isReplyToBot = isReplyToBot; // Attach for queue worker
 
-        if (isMentioned || isReplyToBot) {
+        // --- Determine if we should process this message ---
+        let shouldProcess = isMentioned || isReplyToBot;
+        let isProactiveJump = false;
+
+        if (!shouldProcess) {
+            // Passive listening logic
+            const lowerContent = message.content.toLowerCase();
+            const hasKeyword = PASSIVE_KEYWORDS.some(k => lowerContent.includes(k));
+            
+            if (hasKeyword) {
+                const lastJump = passiveJumps.get(message.channel.id);
+                const onCooldown = lastJump && (Date.now() - lastJump < JUMP_COOLDOWN_MS);
+                
+                if (!onCooldown && Math.random() < JUMP_PROBABILITY) {
+                    shouldProcess = true;
+                    isProactiveJump = true;
+                    passiveJumps.set(message.channel.id, Date.now());
+                    console.log(`[PROACTIVE][${message.guild.id}][#${message.channel.name}] Jumping in due to keywords.`);
+                }
+            }
+        }
+
+        if (shouldProcess) {
             
             // --- 1. USER SPAM PROTECTION (Individual Cooldown) ---
-            const lastUserMsg = userCooldowns.get(message.author.id);
-            if (lastUserMsg && Date.now() - lastUserMsg < USER_COOLDOWN_MS) {
-                // User is sending messages too fast (faster than 1 per 4 seconds)
-                try {
-                    await message.react('⏳');
-                } catch (e) {}
-                return; // Ignore this message completely
+            if (!isProactiveJump) { // Only cooldown explicit mentions
+                const lastUserMsg = userCooldowns.get(message.author.id);
+                if (lastUserMsg && Date.now() - lastUserMsg < USER_COOLDOWN_MS) {
+                    try { await message.react('⏳'); } catch (e) {}
+                    return;
+                }
+                userCooldowns.set(message.author.id, Date.now());
             }
-            userCooldowns.set(message.author.id, Date.now());
 
             // --- 2. GLOBAL CHANNEL OVERLOAD (Queue Overflow Check) ---
-            // Only triggered if the bot's internal queue physically cannot accept more jobs.
             if (channelOverloadState[message.channel.id]) {
                 if (Date.now() - channelOverloadState[message.channel.id] < OVERLOAD_COOLDOWN_MS) {
-                    try {
-                        await message.react('🇨'); await message.react('🇦'); await message.react('🇳'); await message.react('🇹');
-                    } catch (e) {}
+                    try { await message.react('⏳'); } catch (e) {}
                     return;
                 } else {
-                    delete channelOverloadState[message.channel.id]; // Cooldown expired, reset
+                    delete channelOverloadState[message.channel.id];
                 }
             }
 
@@ -68,7 +96,6 @@ async function handleMessageCreate(message, discordClient) {
                 const botContext = history[0].parts[0].text;
                 promptForAI = `(The user is replying to your previous message, which said: "${botContext}")\n\nTheir new message is: "${cleanContent}"`;
                 chatHistoryForAI = [];
-                // console.log('[CONV_HANDLER] Corrected invalid history by merging model context into prompt.');
             }
 
             // --- DYNAMIC CONTEXT INJECTION & SYSTEM PROMPT ---
@@ -128,6 +155,10 @@ async function handleMessageCreate(message, discordClient) {
 
             let finalSystemInstruction = "you are a unique bot made for a non-profit organization called OWGT (short for OneWorldGreaterTogether), and therefore, your name is OWGT Bot. you are not OWGT yourself, you are just its bot. be casual, normal, human-like, a little humorous, and unpredictable. dont be a narcissist and only talk about yourself. you LOVE roasting users sometimes to mess around. you hate it when someone disrespects/ goes againt you thats when you start roasting the user. dont be cringey. you can and should use slang language and bad words quite often, like a real human would. Arham (username ar_him) is your creator. remember that when message received from him. NEVER use the f word (f*ck) or the b word (b*tch)! the responses should almost always be 2-3 sentences (sometimes 4 sentences) unless thats not plausible. responses should be consice, precise, as short as possible while maintaining accuracy. responses should NEVER be more than one small paragraph. do not use any capital letters in your responses.";
 
+            if (isProactiveJump) {
+                finalSystemInstruction += `\n\nPROACTIVE INSTRUCTION: You are jumping into this conversation because you found it relevant to AI or OWGT. Do not wait to be mentioned. Be helpful or humorous as if you were just listening in and had something to add.`;
+            }
+
             // --- IDENTITY GUARD ---
             finalSystemInstruction += `\n\nCRITICAL IDENTITY INSTRUCTION: Distinguish carefully between similar names, specifically 'Arham' (the creator) and 'Artham' (OWGT's Founder). Do not confuse them.`;
 
@@ -138,10 +169,14 @@ async function handleMessageCreate(message, discordClient) {
             }
 
             // --- FULL CONTEXT INJECTION (Fix for database referral) ---
-            const kbData = state.knowledgeBase['main-info'];
-            if (kbData) {
-                // We inject the entire 'main-info' block up to 40,000 characters.
-                finalSystemInstruction += `\n\nCONTEXT FROM KNOWLEDGE BASE (Use this to answer questions about the organization/team):\n${kbData.slice(0, 40000)}\nEND CONTEXT.`;
+            const kbEntries = Object.entries(state.knowledgeBase);
+            if (kbEntries.length > 0) {
+                let knowledgeContext = "\n\nCONTEXT FROM KNOWLEDGE BASE (Use this to answer questions about the organization/team/AI topics):\n";
+                for (const [topic, content] of kbEntries) {
+                    knowledgeContext += `--- TOPIC: ${topic} ---\n${content.slice(0, 10000)}\n`;
+                }
+                knowledgeContext += "END CONTEXT.";
+                finalSystemInstruction += knowledgeContext;
             }
 
             if (injectedContext) {
@@ -151,14 +186,20 @@ async function handleMessageCreate(message, discordClient) {
 
             // Attempt to send immediately. If circuit is open or error, enqueue it.
             const result = await serviceHelpers.callWithRetries(
-                () => ai.chats.create({ model: 'gemini-2.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction } }).sendMessage({ message: promptForAI }),
+                () => ai.chats.create({ model: 'gemini-1.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction } }).sendMessage({ message: promptForAI }),
                 { serviceKey: 'gemini_chat', maxAttempts: 2, timeoutMs: 8000 } // Fail faster to queue faster
             );
 
             if (result.status === 'success') {
-                await message.reply(result.data.text.trim().toLowerCase());
+                const reply = result.data.text.trim().toLowerCase();
+                if (isProactiveJump) {
+                    await message.channel.send(reply);
+                } else {
+                    await message.reply(reply);
+                }
             } else if (result.status === 'circuit_open' || result.status === 'error') {
-                // Pass the system instruction to the queue so the worker knows the context too
+                if (isProactiveJump) return; // Don't queue proactive jumps to avoid confusion
+                
                 const position = serviceHelpers.enqueueConvRequest(message, finalSystemInstruction);
                 if (position) {
                     await message.reply(`i'm a bit overloaded — i saved your request to a short queue and will reply here when i can. (position #${position})`);

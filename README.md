@@ -88,6 +88,13 @@ The system is **100% automatic.**
 2. The poll runs for **24 hours**. When it ends, the bot automatically identifies everyone who voted correctly and adds **1 point** to their score.
 3. **No emoji reactions needed** — just vote!
 
+### 🎖️ Role Milestones
+
+The bot automatically rewards top participants with special Discord roles based on their total points.
+- **Automated:** Roles are assigned as soon as you hit a point milestone.
+- **Progression:** When you hit a higher milestone, your previous milestone role is replaced with the new, more prestigious one.
+- **Celebration:** The bot announces your achievement in the channel!
+
 *Score: Each correctly answered daily trivia poll is worth **1 point**. The bot maintains a persistent score for you on each server.*
 
 ---
@@ -100,6 +107,7 @@ When someone joins your server via an **invite link**:
 - It identifies **who invited them** (when possible).
 - **Automatically awards 1 point** to the inviter for each successful invite! 🎉
 - If the inviter can't be determined, the bot still welcomes the new member warmly.
+- **Customizable:** Administrators can set a custom welcome template and a specific user to CC in the message.
 
 ---
 
@@ -110,7 +118,12 @@ When someone joins your server via an **invite link**:
 | **Missed Poll Catch-up** | If the bot was offline and missed the 6 AM slot, it automatically detects this on startup and posts the daily poll to catch up. |
 | **Fallback Polls** | If the Gemini AI API fails, the bot deploys a fallback poll so your community always gets a question. |
 | **Overload Protection** | When the AI is busy, the bot queues conversation requests and replies when it can — or asks users to try again in a minute. |
-| **Spam Protection** | A cooldown prevents users from flooding the bot with conversation requests. |
+- **Spam Protection:** A cooldown prevents users from flooding the bot with conversation requests.
+- **Automated Community Engagement:** Periodic friendly reminders to #general (every 14 days) and #team (every 9 days) to encourage feature discovery based on command usage stats.
+- **Proactive AI Conversation:** The bot can intelligently "jump in" to conversations about AI or OWGT topics, even without being mentioned, making it feel like a real part of the community.
+- **Optimized Startup:** Background processes ensure the bot is online instantly, syncing roles and invites without blocking connectivity.
+
+--- |
 
 ---
 
@@ -126,28 +139,36 @@ When someone joins your server via an **invite link**:
 
 ## 🔧 Administrator Commands
 
-**Permissions:** These commands can only be used by **ar_him** or users with the **@bot-control** role.
+**Permissions:** These commands can only be used by **ar_him** or users with the **administrative role** (default is **@bot-control**, but this can be changed with `/setcontrolrole`).
 
 | Command | Description |
 |---------|-------------|
+| `/settings` | Displays an overview of the current bot configuration, including permissions, welcome template, role milestones, and active states. |
+| `/setcontrolrole <@role>` | Sets a new administrative role for the server. Members with this role will be able to run all admin commands. |
+| `/milestones <add\|remove> [params]` | Manage role milestones.<br>• **add** `<points> <@role>` — Adds a milestone.<br>• **remove** `<points>` — Removes a milestone. |
+| `/setcc <@user>` | Sets the user to be CC'd in the server's welcome messages. Defaults to the bot creator. |
+| `/setwelcome <template>` | Sets a custom welcome message. Use placeholders: `{user}`, `{inviter}`, `{cc}`, and `{points_msg}`. |
 | `/asknow [optional topic]` | Instantly generates a new, on-demand trivia poll. On-demand polls **do not affect** the leaderboard. Only one can be active on a server at a time.<br>• **`/asknow`** — Generates a poll on a random, general AI topic.<br>• **`/asknow Large Language Models`** — Generates a poll about the provided topic. |
 | `/reveal` | Ends the active on-demand poll and reveals its answer. Posts an embed with the correct answer and a detailed explanation. |
 | `/postdaily` | Manually triggers the daily poll sequence (posts the previous answer, then the new daily poll) in the channel. Useful for testing or correcting a schedule issue. |
 | `/points <add\|remove\|set> <@user> <amount>` | Manually adjusts a user's score. Perfect for giveaways, correcting scores, or rewarding positive behavior.<br>• **add** — Adds points.<br>• **remove** — Subtracts points (cannot go below 0).<br>• **set** — Sets score to an exact value. |
-| `/update-knowledge` | Opens a form to teach the bot about your community, non-profit, or any topic. The bot uses this information in conversations. |
 | `/relinkpoll <message_id> <correct_option_#>` | Recovery tool: Fixes the bot's memory to track a specific poll for the next daily reveal. Use if a daily poll was manually deleted or an error caused a duplicate.<br>**Example:** `/relinkpoll 135123456789012345 3` — Option C is correct. |
 | `/resolve` | Forces the bot to **immediately** resolve the poll in its memory. Awards points and posts the answer embed, but does **not** post a new daily poll.<br>**Usage:** Use `/relinkpoll` first to point to the missed poll, then run `/resolve` to sync the leaderboard and schedule. |
+| `/update-knowledge <topic>` | Opens a form to add or update information for a specific topic (e.g., mission, team, ai-basics). Each topic can hold up to 4,000 characters. |
+| `/knowledge-list` | Lists all topics currently in the bot's knowledge base. |
+| `/knowledge-delete <topic>` | Deletes a specific topic from the knowledge base. |
 
 ---
 
 ## 📚 Managing the Bot's Knowledge
 
-You can teach the bot about your community, non-profit, or any topic directly from Discord.
+You can teach the bot about your community, non-profit, or AI topics directly from Discord using **Topics**. This avoids character limits and keeps information organized.
 
-1. Use the **`/update-knowledge`** command in any channel.
-2. A pop-up form appears, pre-filled with the bot's current knowledge.
-3. Edit the text (bullet points, newlines, normal English).
-4. Click **Submit**. The bot confirms and immediately starts using the new information in conversations.
+1. Use the **`/update-knowledge <topic>`** command.
+2. A pop-up form appears for that specific topic.
+3. Edit the text and click **Submit**.
+4. Use **`/knowledge-list`** to see all your topics.
+5. The bot automatically combines all topics to answer user questions!
 
 ---
 

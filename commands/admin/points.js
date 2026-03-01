@@ -1,6 +1,7 @@
 // --- /points Command Handler ---
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
+const { checkAndAssignMilestoneRole } = require('../../services/roles/milestones');
 
 async function handlePoints(interaction) {
     const guildId = interaction.guild.id;
@@ -16,6 +17,13 @@ async function handlePoints(interaction) {
 
     if (newScore !== null) {
         state.leaderboard[targetUser.id] = newScore;
+        
+        // --- Milestone Role Check ---
+        const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+        if (member) {
+            await checkAndAssignMilestoneRole(member, newScore, interaction.channel);
+        }
+
         await interaction.reply(`Success! **${targetUser.username}**'s score is now **${newScore}**.`);
     } else { await interaction.reply({ content: 'A database error occurred.', ephemeral: true }); }
 }

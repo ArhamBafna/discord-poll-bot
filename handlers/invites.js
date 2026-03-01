@@ -3,6 +3,7 @@ const pool = require('../database/connection');
 const { inviteCache, cacheAndSyncInvites } = require('../services/invites/tracking');
 const { ALLOWED_USERNAME } = require('../config');
 const dbOperations = require('../database/operations');
+const stateManager = require('../state/manager');
 
 async function handleGuildCreate(guild) {
     await cacheAndSyncInvites(guild);
@@ -52,18 +53,28 @@ async function handleGuildMemberAdd(member, discordClient) {
             return;
         }
 
-        const arHimUser = member.guild.members.cache.find(m => m.user.username === ALLOWED_USERNAME) || (await member.guild.members.fetch()).find(m => m.user.username === ALLOWED_USERNAME);
-        let welcomeMessage = `welcome to the server, ${member}!`;
+        const state = stateManager.getServerState(member.guild.id);
+        const ccUserId = state.ccUser;
+        const welcomeTemplate = state.welcomeTemplate;
+        
+        let ccUser = null;
+        if (ccUserId) {
+            ccUser = await member.guild.members.fetch(ccUserId).catch(() => null);
+        } else {
+            // Fallback to Arham (creator) if no CC user set
+            ccUser = member.guild.members.cache.find(m => m.user.username === ALLOWED_USERNAME) || (await member.guild.members.fetch()).find(m => m.user.username === ALLOWED_USERNAME);
+        }
+        
         let inviter = null;
+        let pointsMessage = "";
 
         if (usedInvite && usedInvite.inviter) {
             inviter = await discordClient.users.fetch(usedInvite.inviter.id).catch(() => null);
             if (inviter) {
-                welcomeMessage += ` you were invited by ${inviter}.`;
                 if (inviter.username !== 'mr.democracy._29458') {
                     const newScore = await dbOperations.admin_setOrAddUserScore(member.guild.id, inviter.id, 1, 'add');
                     if (newScore !== null) {
-                        welcomeMessage += ` i added a point to ${inviter}'s score for the invite!`;
+                        pointsMessage = `i added a point to ${inviter}'s score for the invite!`;
                     }
                 }
             }
@@ -71,15 +82,30 @@ async function handleGuildMemberAdd(member, discordClient) {
                 `UPDATE invites SET uses = $1 WHERE guild_id = $2 AND code = $3`,
                 [usedInvite.uses, member.guild.id, usedInvite.code]
             ).catch(err => console.error(`[INVITES_DB] Failed to update uses for invite ${usedInvite.code}`, err));
+        }
+
+        let finalMessage = "";
+        if (welcomeTemplate) {
+            finalMessage = welcomeTemplate
+                .replace('{user}', member)
+                .replace('{inviter}', inviter || "someone unknown")
+                .replace('{cc}', ccUser || "the team")
+                .replace('{points_msg}', pointsMessage);
         } else {
-            welcomeMessage += " i couldn't figure out who invited you, but we're glad you're here.";
+            // Default template
+            finalMessage = `welcome to the server, ${member}!`;
+            if (inviter) {
+                finalMessage += ` you were invited by ${inviter}.`;
+                if (pointsMessage) finalMessage += ` ${pointsMessage}`;
+            } else {
+                finalMessage += " i couldn't figure out who invited you, but we're glad you're here.";
+            }
+            if (ccUser) {
+                finalMessage += ` (cc ${ccUser})`;
+            }
         }
 
-        if (arHimUser) {
-            welcomeMessage += ` (cc ${arHimUser})`;
-        }
-
-        await welcomeChannel.send(welcomeMessage);
+        await welcomeChannel.send(finalMessage);
 
     } catch (err) {
         console.error(`[INVITES] Error in guildMemberAdd event for guild ${member.guild.id}:`, err);

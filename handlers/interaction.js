@@ -11,26 +11,34 @@ const { handleReveal } = require('../commands/admin/reveal');
 const { handlePostdaily } = require('../commands/admin/postdaily');
 const { handleRelinkpoll } = require('../commands/admin/relinkpoll');
 const { handleResolve } = require('../commands/admin/resolve');
-const { handleUpdateKnowledge } = require('../commands/admin/updateKnowledge');
+const { handleKnowledge } = require('../commands/admin/knowledge');
+const { handleSetCC } = require('../commands/admin/setcc');
+const { handleSetWelcome } = require('../commands/admin/setwelcome');
+const { handleSetControlRole } = require('../commands/admin/setcontrolrole');
+const { handleMilestones } = require('../commands/admin/milestones');
+const { handleSettings } = require('../commands/admin/settings');
 
 async function handleInteractionCreate(interaction, discordClient) {
     try {
         // --- Modal Submit Handler ---
         if (interaction.isModalSubmit()) {
-            if (interaction.customId === 'knowledgeBaseModal') {
-                const hasPermission = interaction.user.username === ALLOWED_USERNAME || interaction.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
+            if (interaction.customId.startsWith('knowledgeBaseModal:')) {
+                const hasPermission = interaction.user.username === ALLOWED_USERNAME || 
+                    (stateManager.getServerState(interaction.guild.id).controlRole ? interaction.member?.roles.cache.has(stateManager.getServerState(interaction.guild.id).controlRole) : interaction.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME));
+                
                 if (!hasPermission) {
                     return interaction.reply({ content: "You don't have permission to do this.", ephemeral: true });
                 }
 
                 const guildId = interaction.guild.id;
+                const topic = interaction.customId.split(':')[1];
                 const knowledgeText = interaction.fields.getTextInputValue('knowledgeInput');
-                const success = await dbOperations.admin_saveKnowledgeBase(guildId, 'main-info', knowledgeText);
+                const success = await dbOperations.admin_saveKnowledgeBase(guildId, topic, knowledgeText);
 
                 if (success) {
                     const state = stateManager.getServerState(guildId);
-                    state.knowledgeBase['main-info'] = knowledgeText; // Update cache
-                    await interaction.reply({ content: '✅ Knowledge base has been updated successfully!', ephemeral: true });
+                    state.knowledgeBase[topic] = knowledgeText; // Update cache
+                    await interaction.reply({ content: `✅ Knowledge for topic **${topic}** has been updated successfully!`, ephemeral: true });
                 } else {
                     await interaction.reply({ content: '❌ A database error occurred while trying to update the knowledge base.', ephemeral: true });
                 }
@@ -42,9 +50,16 @@ async function handleInteractionCreate(interaction, discordClient) {
 
         const { commandName } = interaction;
         const guildId = interaction.guild.id;
-        const hasPermission = interaction.user.username === ALLOWED_USERNAME || interaction.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME);
 
         if (!stateManager.serverStateCache[guildId]) await dbOperations.loadStateForGuild(guildId);
+        const state = stateManager.getServerState(guildId);
+
+        // --- Increment Usage Stats ---
+        await dbOperations.incrementCommandUsage(guildId, commandName);
+        state.commandStats[commandName] = (state.commandStats[commandName] || 0) + 1;
+
+        const hasPermission = interaction.user.username === ALLOWED_USERNAME || 
+            (state.controlRole ? interaction.member?.roles.cache.has(state.controlRole) : interaction.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME));
 
         // --- User Commands ---
         if (commandName === 'leaderboard') {
@@ -56,7 +71,7 @@ async function handleInteractionCreate(interaction, discordClient) {
         }
 
         // --- Admin Commands ---
-        if (!hasPermission && ['points', 'asknow', 'reveal', 'postdaily', 'relinkpoll', 'resolve', 'update-knowledge'].includes(commandName)) {
+        if (!hasPermission && ['points', 'asknow', 'reveal', 'postdaily', 'relinkpoll', 'resolve', 'knowledge', 'setcc', 'setwelcome', 'setcontrolrole', 'milestones', 'settings'].includes(commandName)) {
             return interaction.reply({ content: "You don't have permission to use this command.", ephemeral: true });
         }
 
@@ -72,8 +87,18 @@ async function handleInteractionCreate(interaction, discordClient) {
             await handleRelinkpoll(interaction);
         } else if (commandName === 'resolve') {
             await handleResolve(interaction, discordClient);
-        } else if (commandName === 'update-knowledge') {
-            await handleUpdateKnowledge(interaction);
+        } else if (commandName === 'knowledge') {
+            await handleKnowledge(interaction);
+        } else if (commandName === 'setcc') {
+            await handleSetCC(interaction);
+        } else if (commandName === 'setwelcome') {
+            await handleSetWelcome(interaction);
+        } else if (commandName === 'setcontrolrole') {
+            await handleSetControlRole(interaction);
+        } else if (commandName === 'milestones') {
+            await handleMilestones(interaction);
+        } else if (commandName === 'settings') {
+            await handleSettings(interaction);
         }
 
     } catch (error) {

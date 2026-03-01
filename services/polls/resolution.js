@@ -2,6 +2,7 @@
 const { EmbedBuilder } = require('discord.js');
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
+const { checkAndAssignMilestoneRole } = require('../roles/milestones');
 
 async function resolveLastPoll(channel, discordClient) {
     if (!channel || !channel.guild) { console.error(`[RESOLVE] Invalid channel provided.`); return false; }
@@ -24,7 +25,16 @@ async function resolveLastPoll(channel, discordClient) {
 
             if (winnerIds.length > 0) {
                 await dbOperations.batchUpdateScoresInDB(guildId, winnerIds);
-                winnerIds.forEach(userId => { state.leaderboard[userId] = (state.leaderboard[userId] || 0) + 1; });
+                for (const userId of winnerIds) {
+                    const newScore = (state.leaderboard[userId] || 0) + 1;
+                    state.leaderboard[userId] = newScore;
+                    
+                    // --- Milestone Role Check ---
+                    const member = await channel.guild.members.fetch(userId).catch(() => null);
+                    if (member) {
+                        await checkAndAssignMilestoneRole(member, newScore, channel);
+                    }
+                }
             }
 
             const correctOptionLetter = String.fromCharCode(65 + state.lastPollData.correctAnswerIndex);

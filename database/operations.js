@@ -15,10 +15,29 @@ async function loadStateForGuild(guildId) {
         state.lastPollData = null;
         state.activeOnDemandPoll = null;
         state.lastSuccessfulPoll = null;
+        state.ccUser = null;
+        state.welcomeTemplate = null;
+        state.controlRole = null;
+        state.roleMilestones = {};
+        state.commandStats = {};
+        state.lastEngagementPostGeneral = null;
+        state.lastEngagementPostTeam = null;
+
         for (const row of stateRes.rows) {
             if (row.key === 'lastPollData') state.lastPollData = row.value;
             if (row.key === 'activeOnDemandPoll') state.activeOnDemandPoll = row.value;
             if (row.key === 'lastSuccessfulPoll') state.lastSuccessfulPoll = row.value;
+            if (row.key === 'ccUser') state.ccUser = row.value;
+            if (row.key === 'welcomeTemplate') state.welcomeTemplate = row.value;
+            if (row.key === 'controlRole') state.controlRole = row.value;
+            if (row.key === 'roleMilestones') state.roleMilestones = row.value;
+            if (row.key === 'lastEngagementPostGeneral') state.lastEngagementPostGeneral = row.value;
+            if (row.key === 'lastEngagementPostTeam') state.lastEngagementPostTeam = row.value;
+        }
+
+        const statsRes = await client.query('SELECT command_name, uses FROM command_stats WHERE guild_id = $1', [guildId]);
+        for (const row of statsRes.rows) {
+            state.commandStats[row.command_name] = row.uses;
         }
 
         const knowledgeRes = await client.query('SELECT key, value FROM knowledge_base WHERE guild_id = $1', [guildId]);
@@ -77,6 +96,18 @@ async function deleteStateFromDB(guildId, key) {
     } catch (error) { console.error(`[DATABASE] Failed to delete state key '${key}' for guild ${guildId}:`, error); }
 }
 
+async function incrementCommandUsage(guildId, commandName) {
+    try {
+        await pool.query(`INSERT INTO command_stats (guild_id, command_name, uses) VALUES ($1, $2, 1) ON CONFLICT (guild_id, command_name) DO UPDATE SET uses = command_stats.uses + 1;`, [guildId, commandName]);
+    } catch (error) { console.error(`[DATABASE] Failed to increment usage for ${commandName} in guild ${guildId}:`, error); }
+}
+
+async function resetCommandUsage(guildId) {
+    try {
+        await pool.query('DELETE FROM command_stats WHERE guild_id = $1', [guildId]);
+    } catch (error) { console.error(`[DATABASE] Failed to reset usage stats for guild ${guildId}:`, error); }
+}
+
 async function saveQuestionToHistory(guildId, question) {
     try {
         await pool.query('INSERT INTO question_history (guild_id, question) VALUES ($1, $2)', [guildId, question]);
@@ -92,5 +123,7 @@ module.exports = {
     admin_saveKnowledgeBase,
     saveStateToDB,
     deleteStateFromDB,
+    incrementCommandUsage,
+    resetCommandUsage,
     saveQuestionToHistory
 };

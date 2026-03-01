@@ -26,7 +26,25 @@ const commands = [
         .addStringOption(option => option.setName('message_id').setDescription('The ID of the poll message.').setRequired(true))
         .addIntegerOption(option => option.setName('correct_option').setDescription('The number of the correct option (e.g., 3 for C).').setRequired(true).setMinValue(1).setMaxValue(10)),
     new SlashCommandBuilder().setName('resolve').setDescription('Manually resolves the last-known poll.'),
-    new SlashCommandBuilder().setName('update-knowledge').setDescription("Update the bot's knowledge base for answering questions.")
+    new SlashCommandBuilder().setName('knowledge').setDescription("Manage the bot's knowledge base topics.")
+        .addSubcommand(sub => sub.setName('update').setDescription('Add or update a specific topic.')
+            .addStringOption(option => option.setName('topic').setDescription('The topic/chapter to update.').setRequired(true)))
+        .addSubcommand(sub => sub.setName('list').setDescription('List all topics in the knowledge base.'))
+        .addSubcommand(sub => sub.setName('delete').setDescription('Delete a topic from the knowledge base.')
+            .addStringOption(option => option.setName('topic').setDescription('The topic to delete.').setRequired(true))),
+    new SlashCommandBuilder().setName('setcc').setDescription('Sets the user to be CC\'d in welcome messages.')
+        .addUserOption(option => option.setName('user').setDescription('The user to CC.').setRequired(true)),
+    new SlashCommandBuilder().setName('setwelcome').setDescription('Sets the welcome message template. Use {user}, {inviter}, {cc}, and {points_msg}.')
+        .addStringOption(option => option.setName('template').setDescription('The message template.').setRequired(true)),
+    new SlashCommandBuilder().setName('setcontrolrole').setDescription('Sets the role allowed to run administrative commands.')
+        .addRoleOption(option => option.setName('role').setDescription('The administrative role.').setRequired(true)),
+    new SlashCommandBuilder().setName('milestones').setDescription('Manage role milestones for reaching specific point counts.')
+        .addSubcommand(sub => sub.setName('add').setDescription('Adds a role milestone.')
+            .addIntegerOption(option => option.setName('points').setDescription('The points required for the role.').setRequired(true).setMinValue(1))
+            .addRoleOption(option => option.setName('role').setDescription('The role to assign.').setRequired(true)))
+        .addSubcommand(sub => sub.setName('remove').setDescription('Removes a role milestone.')
+            .addIntegerOption(option => option.setName('points').setDescription('The points count to remove.').setRequired(true).setMinValue(1))),
+    new SlashCommandBuilder().setName('settings').setDescription('Displays the current bot configuration.')
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
