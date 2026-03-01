@@ -186,7 +186,7 @@ async function handleMessageCreate(message, discordClient) {
 
             // Attempt to send immediately. If circuit is open or error, enqueue it.
             const result = await serviceHelpers.callWithRetries(
-                () => ai.chats.create({ model: 'gemini-1.5-flash', history: chatHistoryForAI, config: { systemInstruction: finalSystemInstruction } }).sendMessage({ message: promptForAI }),
+                () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: promptForAI, config: { systemInstruction: finalSystemInstruction } }),
                 { serviceKey: 'gemini_chat', maxAttempts: 2, timeoutMs: 8000 } // Fail faster to queue faster
             );
 
@@ -202,7 +202,10 @@ async function handleMessageCreate(message, discordClient) {
                 
                 const position = serviceHelpers.enqueueConvRequest(message, finalSystemInstruction);
                 if (position) {
-                    await message.reply(`i'm a bit overloaded — i saved your request to a short queue and will reply here when i can. (position #${position})`);
+                    // Only tell the user they're "overloaded" when they're actually waiting behind others (position > 1)
+                    if (position > 1) {
+                        await message.reply(`i'm a bit overloaded — i saved your request to a short queue and will reply here when i can. (position #${position})`);
+                    }
                 } else {
                     // Queue is full: Set GLOBAL channel overload state
                     if (!channelOverloadState[message.channel.id]) {
