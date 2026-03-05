@@ -48,18 +48,19 @@ async function handleReady(discordClient) {
     }
 
     TARGET_CHANNEL_IDS.forEach(channelId => {
-        cron.schedule('0 6 * * *', () => performDailyPost(channelId, discordClient), { scheduled: true, timezone: "America/New_York" });
-        cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId, discordClient), { scheduled: true, timezone: "America/New_York" });
-        // Check for engagement posts every 24 hours
-        cron.schedule('0 10 * * *', () => checkAndPostEngagement(discordClient), { scheduled: true, timezone: "America/New_York" });
+        cron.schedule('0 6 * * *', () => performDailyPost(channelId, discordClient), { scheduled: true, timezone: 'America/New_York' });
+        cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId, discordClient), { scheduled: true, timezone: 'America/New_York' });
     });
+
+    // Engagement scanning is global and already iterates all guilds.
+    cron.schedule('0 10 * * *', () => checkAndPostEngagement(discordClient), { scheduled: true, timezone: 'America/New_York' });
 
     serviceHelpers.startConvQueueWorker(discordClient); // Start the background queue processor
     console.log('--- Bot is fully operational. ---');
 
     console.log('[STARTUP] Backgrounding catch-up check and initial engagement check...');
-    checkForMissedPolls(discordClient).catch(err => console.error("[STARTUP] Catch-up check failed.", err));
-    checkAndPostEngagement(discordClient).catch(err => console.error("[STARTUP] Initial engagement check failed.", err));
+    checkForMissedPolls(discordClient).catch(err => console.error('[STARTUP] Catch-up check failed.', err));
+    checkAndPostEngagement(discordClient).catch(err => console.error('[STARTUP] Initial engagement check failed.', err));
 }
 
 module.exports = { handleReady };

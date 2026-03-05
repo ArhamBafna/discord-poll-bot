@@ -86,12 +86,22 @@ async function postWeeklySummary(channelId, discordClient) {
         // Fetch previous leaderboard for comparison
         let previousLeaderboard = null;
         try {
-            const lastSummaryRes = await dbOperations.pool.query(
+            const lastSummaryRes = await pool.query(
                 `SELECT value FROM state WHERE guild_id = $1 AND key = 'lastWeeklyLeaderboard'`,
                 [guildId]
             );
             if (lastSummaryRes.rows.length > 0) {
-                previousLeaderboard = lastSummaryRes.rows[0].value;
+                const rawPrevious = lastSummaryRes.rows[0].value;
+                if (rawPrevious && typeof rawPrevious === 'object') {
+                    previousLeaderboard = rawPrevious;
+                } else if (typeof rawPrevious === 'string') {
+                    try {
+                        const parsed = JSON.parse(rawPrevious);
+                        if (parsed && typeof parsed === 'object') previousLeaderboard = parsed;
+                    } catch {
+                        previousLeaderboard = null;
+                    }
+                }
             }
         } catch (err) { console.error(`[LEADERBOARD] Failed to fetch previous leaderboard:`, err); }
 
@@ -146,9 +156,12 @@ INSTRUCTIONS:
 8. Keep it concise (1-2 paragraphs).`;
 
         const summaryText = await generateTextWithRetries(prompt, 'gemini_summary');
-        const description = summaryText || "Here's a look at this week's top contenders! Great job, everyone.";
+        const aiComment = summaryText && summaryText.trim().length > 0
+            ? summaryText.trim()
+            : "AI summary unavailable this week due to a temporary service issue. Great effort from everyone, and we will be back with full AI analysis next report.";
+        const description = '**AI Comment**\n' + aiComment;
 
-        const summaryEmbed = new EmbedBuilder().setColor('#FFD700').setTitle('🏆 Weekly Poll Report 🏆').setDescription(description).addFields({ name: 'Top 10 This Week', value: leaderboardString || 'No participants this week.' }).setFooter({ text: 'A new week of polls starts tomorrow!' });
+        const summaryEmbed = new EmbedBuilder().setColor('#FFD700').setTitle('Weekly Poll Report').setDescription(description).addFields({ name: 'Top 10 This Week', value: leaderboardString || 'No participants this week.' }).setFooter({ text: 'A new week of polls starts tomorrow!' });
 
         // Add Milestone info to embed if available
         const milestonesEmbed = state.roleMilestones;
@@ -158,7 +171,7 @@ INSTRUCTIONS:
             for (const [pts, roleId] of sortedMilestones) {
                 milestoneStr += `- **${pts} Points**: <@&${roleId}>\n`;
             }
-            summaryEmbed.addFields({ name: '✨ Role Milestones', value: milestoneStr });
+            summaryEmbed.addFields({ name: 'Role Milestones', value: milestoneStr });
         }
 
         await channel.send({ embeds: [summaryEmbed] });
@@ -167,8 +180,9 @@ INSTRUCTIONS:
         await dbOperations.saveStateToDB(guildId, 'lastWeeklyLeaderboard', state.leaderboard);
     } catch (error) { console.error(`[LEADERBOARD][Channel: ${channelId}] Failed to post weekly summary:`, error); }
 }
-
 module.exports = {
     performDailyPost,
     postWeeklySummary
 };
+
+

@@ -64,24 +64,71 @@ ${historyInstruction}
     return { status: 'error', permanent: false, error: new Error('Failed to generate unique question') };
 }
 
-async function buildConversationHistory(message, discordClient) {
-    const history = [];
+async function buildConversationHistory(message, discordClient, options = {}) {
+    const {
+        includeRecentChannelContext = false,
+        recentChannelContextLimit = 8
+    } = options;
+
+    const historyEntries = [];
+    const seenMessageIds = new Set();
+
+    const pushIfRelevant = (candidate) => {
+        if (!candidate || !candidate.content || seenMessageIds.has(candidate.id)) return;
+        if (candidate.author.bot && candidate.author.id !== discordClient.user.id) return;
+
+        const isFromBot = candidate.author.id === discordClient.user.id;
+
+        seenMessageIds.add(candidate.id);
+        historyEntries.push({
+            id: candidate.id,
+            role: isFromBot ? 'model' : 'user',
+            parts: [{ text: candidate.content }]
+        });
+    };
+
+    if (includeRecentChannelContext) {
+        try {
+            const recentMessages = await message.channel.messages.fetch({ limit: recentChannelContextLimit, before: message.id });
+            const ordered = [...recentMessages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+            for (const recent of ordered) pushIfRelevant(recent);
+        } catch (error) {
+            console.warn('[CONTEXT] Failed to fetch recent channel context:', error?.message || error);
+        }
+    }
+
+    const replyChainEntries = [];
     let currentReference = message.reference;
     for (let i = 0; i < 10 && currentReference && currentReference.messageId; i++) {
         try {
             const referencedMessage = await message.channel.messages.fetch(currentReference.messageId);
-            if (referencedMessage.author.id === message.author.id || referencedMessage.author.id === discordClient.user.id) {
-                history.unshift({ role: referencedMessage.author.id === discordClient.user.id ? 'model' : 'user', parts: [{ text: referencedMessage.content }] });
-            } else { break; }
-            currentReference = referencedMessage.reference;
-        } catch { break; }
-    }
-    return history;
-}
+            const isFromBot = referencedMessage.author.id === discordClient.user.id;
 
+            replyChainEntries.unshift({
+                id: referencedMessage.id,
+                role: isFromBot ? 'model' : 'user',
+                parts: [{ text: referencedMessage.content }]
+            });
+            currentReference = referencedMessage.reference;
+        } catch {
+            break;
+        }
+    }
+
+    for (const entry of replyChainEntries) {
+        if (!seenMessageIds.has(entry.id)) {
+            seenMessageIds.add(entry.id);
+            historyEntries.push(entry);
+        }
+    }
+
+    return historyEntries.map(({ role, parts }) => ({ role, parts }));
+}
 module.exports = {
     generateTextWithRetries,
     generatePollWithRetries,
     generateTriviaPoll,
     buildConversationHistory
 };
+
+

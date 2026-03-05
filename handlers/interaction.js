@@ -20,6 +20,35 @@ const { handleSettings } = require('../commands/admin/settings');
 
 async function handleInteractionCreate(interaction, discordClient) {
     try {
+        // --- Slash Autocomplete Handler ---
+        if (interaction.isAutocomplete()) {
+            if (interaction.commandName !== 'knowledge') {
+                await interaction.respond([]);
+                return;
+            }
+
+            const guildId = interaction.guild.id;
+            if (!stateManager.serverStateCache[guildId]) await dbOperations.loadStateForGuild(guildId);
+            const state = stateManager.getServerState(guildId);
+
+            const hasPermission = interaction.user.username === ALLOWED_USERNAME ||
+                (state.controlRole ? interaction.member?.roles.cache.has(state.controlRole) : interaction.member?.roles.cache.some(role => role.name === CONTROL_ROLE_NAME));
+
+            if (!hasPermission || interaction.options.getSubcommand() !== 'update') {
+                await interaction.respond([]);
+                return;
+            }
+
+            const focusedValue = interaction.options.getFocused().toLowerCase().trim();
+            const topicChoices = Object.keys(state.knowledgeBase)
+                .filter(topic => topic.toLowerCase().includes(focusedValue))
+                .slice(0, 25)
+                .map(topic => ({ name: topic, value: topic }));
+
+            await interaction.respond(topicChoices);
+            return;
+        }
+
         // --- Modal Submit Handler ---
         if (interaction.isModalSubmit()) {
             if (interaction.customId.startsWith('knowledgeBaseModal:')) {
@@ -38,9 +67,9 @@ async function handleInteractionCreate(interaction, discordClient) {
                 if (success) {
                     const state = stateManager.getServerState(guildId);
                     state.knowledgeBase[topic] = knowledgeText; // Update cache
-                    await interaction.reply({ content: `✅ Knowledge for topic **${topic}** has been updated successfully!`, ephemeral: true });
+                    await interaction.reply({ content: `Knowledge for topic **${topic}** has been updated successfully!` });
                 } else {
-                    await interaction.reply({ content: '❌ A database error occurred while trying to update the knowledge base.', ephemeral: true });
+                    await interaction.reply({ content: 'A database error occurred while trying to update the knowledge base.' });
                 }
             }
             return;

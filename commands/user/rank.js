@@ -8,10 +8,20 @@ async function handleRank(interaction) {
     if (sortedUsers.length === 0) return interaction.editReply('The leaderboard is empty!');
 
     const targetUser = interaction.options.getUser('user') || interaction.user;
+    const isSelf = targetUser.id === interaction.user.id;
     const userRankIndex = sortedUsers.findIndex(([userId]) => userId === targetUser.id);
+
     if (userRankIndex !== -1) {
-        await interaction.editReply(`${targetUser.username}, you are rank **#${userRankIndex + 1}** with **${sortedUsers[userRankIndex][1]}** point(s).`);
-    } else { await interaction.editReply(`${targetUser.username}, you are not on the leaderboard yet.`); }
+        const message = isSelf
+            ? `${targetUser.username}, you are rank **#${userRankIndex + 1}** with **${sortedUsers[userRankIndex][1]}** point(s).`
+            : `${targetUser.username} is rank **#${userRankIndex + 1}** with **${sortedUsers[userRankIndex][1]}** point(s).`;
+        await interaction.editReply(message);
+    } else {
+        const message = isSelf
+            ? `${targetUser.username}, you are not on the leaderboard yet.`
+            : `${targetUser.username} is not on the leaderboard yet.`;
+        await interaction.editReply(message);
+    }
 }
 
 module.exports = { handleRank };

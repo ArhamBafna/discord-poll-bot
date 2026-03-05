@@ -22,6 +22,42 @@ const PASSIVE_KEYWORDS = [
     'poll', 'leaderboard', 'points', 'trivia', 'question', 'answer', 'rank', 'score', 'winner'
 ];
 
+// --- NON-PING FOLLOW-UP CONTINUITY ---
+const activeUserSessions = new Map(); // { channelId-userId: timestamp }
+const SESSION_FOLLOWUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const NO_REPLY_SENTINEL = '[[OWGT_NO_REPLY]]';
+
+function getSessionKey(channelId, userId) {
+    return `${channelId}-${userId}`;
+}
+
+function markActiveSession(channelId, userId) {
+    activeUserSessions.set(getSessionKey(channelId, userId), Date.now());
+}
+
+function hasActiveSession(channelId, userId) {
+    const key = getSessionKey(channelId, userId);
+    const last = activeUserSessions.get(key);
+    if (!last) return false;
+    if (Date.now() - last > SESSION_FOLLOWUP_WINDOW_MS) {
+        activeUserSessions.delete(key);
+        return false;
+    }
+    return true;
+}
+
+function isNoReplySignal(text) {
+    if (!text) return false;
+    return text.trim().toUpperCase() === NO_REPLY_SENTINEL;
+}
+
+function buildAiContents(chatHistory, promptForAI) {
+    return [
+        ...chatHistory,
+        { role: 'user', parts: [{ text: promptForAI }] }
+    ];
+}
+
 async function handleMessageCreate(message, discordClient) {
     try {
         if (message.author.bot || !message.guild) return;
@@ -37,19 +73,25 @@ async function handleMessageCreate(message, discordClient) {
         }
         message.isReplyToBot = isReplyToBot; // Attach for queue worker
 
+        // If user explicitly interacted once, start/refresh continuity tracking immediately.
+        if (isMentioned || isReplyToBot) {
+            markActiveSession(message.channel.id, message.author.id);
+        }
+
         // --- Determine if we should process this message ---
         let shouldProcess = isMentioned || isReplyToBot;
         let isProactiveJump = false;
+        let isSessionFollowUp = false;
 
         if (!shouldProcess) {
             // Passive listening logic
             const lowerContent = message.content.toLowerCase();
             const hasKeyword = PASSIVE_KEYWORDS.some(k => lowerContent.includes(k));
-            
+
             if (hasKeyword) {
                 const lastJump = passiveJumps.get(message.channel.id);
                 const onCooldown = lastJump && (Date.now() - lastJump < JUMP_COOLDOWN_MS);
-                
+
                 if (!onCooldown && Math.random() < JUMP_PROBABILITY) {
                     shouldProcess = true;
                     isProactiveJump = true;
@@ -59,10 +101,16 @@ async function handleMessageCreate(message, discordClient) {
             }
         }
 
+        if (!shouldProcess && hasActiveSession(message.channel.id, message.author.id)) {
+            shouldProcess = true;
+            isSessionFollowUp = true;
+            console.log(`[FOLLOWUP][${message.guild.id}][#${message.channel.name}] Continuing conversation without ping for user ${message.author.id}.`);
+        }
+
         if (shouldProcess) {
-            
+
             // --- 1. USER SPAM PROTECTION (Individual Cooldown) ---
-            if (!isProactiveJump) { // Only cooldown explicit mentions
+            if (!isProactiveJump) { // Only cooldown explicit mentions/follow-ups
                 const lastUserMsg = userCooldowns.get(message.author.id);
                 if (lastUserMsg && Date.now() - lastUserMsg < USER_COOLDOWN_MS) {
                     try { await message.react('⏳'); } catch (e) {}
@@ -86,13 +134,17 @@ async function handleMessageCreate(message, discordClient) {
 
             const state = stateManager.getServerState(message.guild.id);
             const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
-            const history = await buildConversationHistory(message, discordClient);
+            const history = await buildConversationHistory(message, discordClient, {
+                includeRecentChannelContext: isProactiveJump || isSessionFollowUp,
+                recentChannelContextLimit: 7
+            });
 
             // --- CONVERSATION CONTEXT & HISTORY VALIDATION ---
             let promptForAI = cleanContent;
             let chatHistoryForAI = history;
 
-            if (history.length > 0 && history[0].role === 'model') {
+            // Keep legacy reply-chain behavior for explicit replies only.
+            if (!isProactiveJump && !isSessionFollowUp && history.length > 0 && history[0].role === 'model') {
                 const botContext = history[0].parts[0].text;
                 promptForAI = `(The user is replying to your previous message, which said: "${botContext}")\n\nTheir new message is: "${cleanContent}"`;
                 chatHistoryForAI = [];
@@ -182,25 +234,47 @@ async function handleMessageCreate(message, discordClient) {
             if (injectedContext) {
                 finalSystemInstruction += `\n\nADDITIONAL LIVE CONTEXT: Use the following up-to-the-minute data to answer the user's question if it is relevant. This data is more current than your training data. Do not mention you were given this data.\n${injectedContext}`;
             }
+
+            const canSilentlySkipReply = isProactiveJump || isSessionFollowUp;
+            if (canSilentlySkipReply) {
+                finalSystemInstruction += `\n\nNON-PING SAFETY RULE: If you judge that the user's message was probably not meant for you, or replying would be irrelevant/awkward and would interrupt the chat, output exactly ${NO_REPLY_SENTINEL} and nothing else.`;
+            }
             // --- End Dynamic System Prompt ---
+
+            const aiContents = buildAiContents(chatHistoryForAI, promptForAI);
 
             // Attempt to send immediately. If circuit is open or error, enqueue it.
             const result = await serviceHelpers.callWithRetries(
-                () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: promptForAI, config: { systemInstruction: finalSystemInstruction } }),
+                () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: aiContents, config: { systemInstruction: finalSystemInstruction } }),
                 { serviceKey: 'gemini_chat', maxAttempts: 2, timeoutMs: 8000 } // Fail faster to queue faster
             );
 
             if (result.status === 'success') {
-                const reply = result.data.text.trim().toLowerCase();
+                const rawReply = (result.data?.text || '').trim();
+                if (!rawReply) return;
+
+                if (canSilentlySkipReply && isNoReplySignal(rawReply)) {
+                    console.log(`[NON_PING][SKIP] Model returned ${NO_REPLY_SENTINEL}; no reply sent.`);
+                    return;
+                }
+
+                const reply = rawReply.toLowerCase();
                 if (isProactiveJump) {
                     await message.channel.send(reply);
                 } else {
                     await message.reply(reply);
+                    markActiveSession(message.channel.id, message.author.id);
                 }
             } else if (result.status === 'circuit_open' || result.status === 'error') {
                 if (isProactiveJump) return; // Don't queue proactive jumps to avoid confusion
-                
-                const position = serviceHelpers.enqueueConvRequest(message, finalSystemInstruction);
+
+                const position = serviceHelpers.enqueueConvRequest(message, {
+                    systemInstruction: finalSystemInstruction,
+                    contents: aiContents,
+                    skipReplySentinel: canSilentlySkipReply,
+                    noReplySentinel: NO_REPLY_SENTINEL
+                });
+
                 if (position) {
                     // Only tell the user they're "overloaded" when they're actually waiting behind others (position > 1)
                     if (position > 1) {
@@ -222,3 +296,6 @@ async function handleMessageCreate(message, discordClient) {
 }
 
 module.exports = { handleMessageCreate };
+
+
+

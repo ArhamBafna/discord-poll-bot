@@ -28,7 +28,7 @@ async function handleKnowledge(interaction) {
     else if (subCommand === 'list') {
         const topics = Object.keys(state.knowledgeBase);
         if (topics.length === 0) {
-            return interaction.reply({ content: "The knowledge base is currently empty.", ephemeral: true });
+            return interaction.reply({ content: "The knowledge base is currently empty." });
         }
 
         let response = "**Current Knowledge Base Topics:**\n";
@@ -37,12 +37,12 @@ async function handleKnowledge(interaction) {
             response += `- **${t}**: ${length} characters\n`;
         });
         response += "\n*Use `/knowledge update topic:<name>` to edit or add.*";
-        await interaction.reply({ content: response, ephemeral: true });
+        await interaction.reply({ content: response });
     } 
     else if (subCommand === 'delete') {
         const topic = interaction.options.getString('topic').toLowerCase().trim();
         if (!state.knowledgeBase[topic]) {
-            return interaction.reply({ content: `Topic **${topic}** not found.`, ephemeral: true });
+            return interaction.reply({ content: `Topic **${topic}** not found.` });
         }
 
         try {
@@ -50,10 +50,10 @@ async function handleKnowledge(interaction) {
             const pool = require('../../database/connection');
             await pool.query('DELETE FROM knowledge_base WHERE guild_id = $1 AND key = $2', [guildId, topic]);
             delete state.knowledgeBase[topic];
-            await interaction.reply({ content: `✅ Successfully deleted topic: **${topic}**`, ephemeral: true });
+            await interaction.reply({ content: `Successfully deleted topic: **${topic}**` });
         } catch (error) {
             console.error(`[KNOWLEDGE] Failed to delete topic ${topic}:`, error);
-            await interaction.reply({ content: "❌ A database error occurred.", ephemeral: true });
+            await interaction.reply({ content: "A database error occurred." });
         }
     }
 }

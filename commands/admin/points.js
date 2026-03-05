@@ -9,6 +9,7 @@ async function handlePoints(interaction) {
     const subCommand = interaction.options.getSubcommand();
     const targetUser = interaction.options.getUser('user');
     const amount = interaction.options.getInteger('amount');
+    const reason = subCommand === 'add' ? interaction.options.getString('message') : null;
 
     let newScore = null;
     if (subCommand === 'add') newScore = await dbOperations.admin_setOrAddUserScore(guildId, targetUser.id, amount, 'add');
@@ -17,14 +18,19 @@ async function handlePoints(interaction) {
 
     if (newScore !== null) {
         state.leaderboard[targetUser.id] = newScore;
-        
+
         // --- Milestone Role Check ---
         const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
         if (member) {
             await checkAndAssignMilestoneRole(member, newScore, interaction.channel);
         }
 
-        await interaction.reply(`Success! **${targetUser.username}**'s score is now **${newScore}**.`);
+        let confirmation = `Success! **${targetUser.username}**'s score is now **${newScore}**.`;
+        if (reason) {
+            confirmation += ` Added because: "${reason}"`;
+        }
+
+        await interaction.reply(confirmation);
     } else { await interaction.reply({ content: 'A database error occurred.', ephemeral: true }); }
 }
 

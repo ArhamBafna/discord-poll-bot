@@ -36,7 +36,7 @@ async function handleSettings(interaction) {
         `- **Active Poll:** ${state.activeOnDemandPoll ? 'Yes' : 'None'}\n` +
         `- **Knowledge Base Topics:** ${Object.keys(state.knowledgeBase).length > 0 ? Object.keys(state.knowledgeBase).join(', ') : 'None'}`;
 
-    await interaction.reply({ content: response, ephemeral: true });
+    await interaction.reply({ content: response });
 }
 
 module.exports = { handleSettings };

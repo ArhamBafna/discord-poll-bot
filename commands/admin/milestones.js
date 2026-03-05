@@ -27,7 +27,7 @@ async function handleMilestones(interaction) {
             const milestones = { ...state.roleMilestones };
             
             if (!milestones[points]) {
-                return await interaction.reply({ content: `There is no milestone set for **${points}** points.`, ephemeral: true });
+                return await interaction.reply({ content: `There is no milestone set for **${points}** points.` });
             }
             
             delete milestones[points];

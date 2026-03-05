@@ -11,7 +11,8 @@ const commands = [
     new SlashCommandBuilder().setName('points').setDescription("Manually adjusts a user's score.")
         .addSubcommand(sub => sub.setName('add').setDescription('Adds points to a user.')
             .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
-            .addIntegerOption(option => option.setName('amount').setDescription('The number of points to add.').setRequired(true).setMinValue(1)))
+            .addIntegerOption(option => option.setName('amount').setDescription('The number of points to add.').setRequired(true).setMinValue(1))
+            .addStringOption(option => option.setName('message').setDescription('Optional reason for adding points.').setMaxLength(200)))
         .addSubcommand(sub => sub.setName('remove').setDescription('Removes points from a user.')
             .addUserOption(option => option.setName('user').setDescription('The user to modify.').setRequired(true))
             .addIntegerOption(option => option.setName('amount').setDescription('The number of points to remove.').setRequired(true).setMinValue(1)))
@@ -28,7 +29,7 @@ const commands = [
     new SlashCommandBuilder().setName('resolve').setDescription('Manually resolves the last-known poll.'),
     new SlashCommandBuilder().setName('knowledge').setDescription("Manage the bot's knowledge base topics.")
         .addSubcommand(sub => sub.setName('update').setDescription('Add or update a specific topic.')
-            .addStringOption(option => option.setName('topic').setDescription('The topic/chapter to update.').setRequired(true)))
+            .addStringOption(option => option.setName('topic').setDescription('The topic/chapter to update.').setRequired(true).setAutocomplete(true)))
         .addSubcommand(sub => sub.setName('list').setDescription('List all topics in the knowledge base.'))
         .addSubcommand(sub => sub.setName('delete').setDescription('Delete a topic from the knowledge base.')
             .addStringOption(option => option.setName('topic').setDescription('The topic to delete.').setRequired(true))),
@@ -50,3 +51,5 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
 
 module.exports = { commands, rest };
+
+
