@@ -33,7 +33,7 @@ The **OWGT Bot** is a sophisticated, AI-powered tool designed to enhance communi
 
 It automatically posts a dynamic mix of **daily trivia** and **discussion polls** about Artificial Intelligence.
 
-Key features include a **fully automated leaderboard system**, a **weekly AI-generated performance summary**, and a **suite of on-demand commands** for administrators.
+Key features include a **fully automated leaderboard system**, a **weekly AI-generated performance summary**, a **suite of on-demand commands** for administrators, and **auto-reply behavior** when the bot thinks it should jump into the conversation.
 
 ---
 
@@ -41,9 +41,8 @@ Key features include a **fully automated leaderboard system**, a **weekly AI-gen
 
 ### 📅 Daily Scheduled Polls
 
-| When | Every day at **6:00 AM Eastern Time (ET)** |
-|------|-------------------------------------------|
-| **What** | The bot posts a new poll in its designated channel(s). |
+- **When:** Every day at **6:00 AM Eastern Time (ET)**.
+- **What:** The bot posts a new poll in its designated channel(s).
 
 **Trivia Polls:**
 - A multiple-choice question about AI with one correct answer.
@@ -61,15 +60,18 @@ Right before posting the new daily poll, the bot provides a follow-up to the pre
 
 The bot is not just for polls! You can have a **natural conversation** with it.
 
-| How to Trigger | • Mention the bot directly (e.g., `@OWGT Bot how are you?`)<br>• Reply to any of the bot's messages (including polls and answers) |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| **What it Does** | Remembers the last few messages in your conversation to maintain context. The bot can answer questions about the server leaderboard and any custom topics you teach it using the `/update-knowledge` command. |
+**How to Trigger**
+- Mention the bot directly (e.g., `@OWGT Bot how are you?`)
+- Reply to any of the bot's messages (including polls and answers)
+
+**What it Does**
+- Replies in a natural, chat-style way.
+- Uses recent conversation context and what it already knows.
+- Sometimes auto-replies when it thinks it should jump in.
 
 ### 📊 Weekly Leaderboard Summary
 
-| When | Every **Sunday at 9:00 PM Eastern Time (ET)** |
-|------|----------------------------------------------|
-| **What** | The bot posts a special **"Weekly Poll Report"** embed featuring a unique, human-like summary of the week's leaderboard activity (written by Gemini AI) and the **Top 10** highest-scoring members for that server. |
+- Every **Sunday at 9:00 PM Eastern Time (ET)**, the bot posts a weekly report with a short summary and the **Top 10** members for that server.
 
 ---
 
@@ -123,7 +125,6 @@ When someone joins your server via an **invite link**:
 - **Proactive AI Conversation:** The bot can intelligently "jump in" to conversations about AI or OWGT topics, even without being mentioned, making it feel like a real part of the community.
 - **Optimized Startup:** Background processes ensure the bot is online instantly, syncing roles and invites without blocking connectivity.
 
---- |
 
 ---
 

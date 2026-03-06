@@ -21,12 +21,16 @@ const commands = [
             .addIntegerOption(option => option.setName('amount').setDescription('The exact score to set.').setRequired(true).setMinValue(0))),
     new SlashCommandBuilder().setName('asknow').setDescription('Starts an on-demand trivia poll (does not award points).')
         .addStringOption(option => option.setName('topic').setDescription('An optional topic for the poll.')),
-    new SlashCommandBuilder().setName('reveal').setDescription('Reveals the answer for the active on-demand poll.'),
     new SlashCommandBuilder().setName('postdaily').setDescription('Manually triggers the daily poll sequence.'),
     new SlashCommandBuilder().setName('relinkpoll').setDescription("Fixes the bot's memory to track a poll that was deleted or missed.")
         .addStringOption(option => option.setName('message_id').setDescription('The ID of the poll message.').setRequired(true))
         .addIntegerOption(option => option.setName('correct_option').setDescription('The number of the correct option (e.g., 3 for C).').setRequired(true).setMinValue(1).setMaxValue(10)),
-    new SlashCommandBuilder().setName('resolve').setDescription('Manually resolves the last-known poll.'),
+    new SlashCommandBuilder().setName('resolve').setDescription('Resolve either an on-demand or daily poll.')
+        .addStringOption(option => option.setName('poll').setDescription('Which poll flow to resolve.').setRequired(true)
+            .addChoices(
+                { name: 'On-demand', value: 'on-demand' },
+                { name: 'Daily', value: 'daily' }
+            )),
     new SlashCommandBuilder().setName('knowledge').setDescription("Manage the bot's knowledge base topics.")
         .addSubcommand(sub => sub.setName('update').setDescription('Add or update a specific topic.')
             .addStringOption(option => option.setName('topic').setDescription('The topic/chapter to update.').setRequired(true).setAutocomplete(true)))
@@ -39,6 +43,8 @@ const commands = [
         .addStringOption(option => option.setName('template').setDescription('The message template.').setRequired(true)),
     new SlashCommandBuilder().setName('setcontrolrole').setDescription('Sets the role allowed to run administrative commands.')
         .addRoleOption(option => option.setName('role').setDescription('The administrative role.').setRequired(true)),
+    new SlashCommandBuilder().setName('invitepoints').setDescription('Sets how many points are awarded per successful invite.')
+        .addIntegerOption(option => option.setName('points').setDescription('Points awarded per invite.').setRequired(true).setMinValue(0).setMaxValue(100)),
     new SlashCommandBuilder().setName('milestones').setDescription('Manage role milestones for reaching specific point counts.')
         .addSubcommand(sub => sub.setName('add').setDescription('Adds a role milestone.')
             .addIntegerOption(option => option.setName('points').setDescription('The points required for the role.').setRequired(true).setMinValue(1))
@@ -51,5 +57,3 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
 
 module.exports = { commands, rest };
-
-

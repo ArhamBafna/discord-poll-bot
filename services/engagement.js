@@ -2,7 +2,7 @@ const stateManager = require('../state/manager');
 const dbOperations = require('../database/operations');
 
 const USER_COMMANDS = ['leaderboard', 'rank', 'help'];
-const ADMIN_COMMANDS = ['asknow', 'reveal', 'postdaily', 'points', 'knowledge', 'relinkpoll', 'resolve', 'milestones', 'settings', 'setcc', 'setwelcome', 'setcontrolrole'];
+const ADMIN_COMMANDS = ['asknow', 'postdaily', 'points', 'knowledge', 'relinkpoll', 'resolve', 'milestones', 'settings', 'setcc', 'setwelcome', 'setcontrolrole'];
 const USER_CHANNEL_NAMES = ['general', 'chat', 'community', 'lounge'];
 const ADMIN_CHANNEL_NAMES = ['team', 'staff', 'admin', 'admins', 'mod', 'mods', 'moderator', 'moderators'];
 
@@ -11,7 +11,7 @@ const COMMAND_DESCRIPTIONS = {
     rank: 'See your personal rank and total points.',
     help: 'Get a full list of everything I can do.',
     asknow: 'Instantly start an on-demand AI poll.',
-    reveal: 'End an active on-demand poll and show the answer.',
+    resolve: 'Resolve on-demand or daily polls on demand.',
     points: 'Manually adjust user scores for rewards or corrections.',
     knowledge: 'Update my brain with new info about OWGT or AI.',
     milestones: 'Set up automated roles for point achievements.',
@@ -120,3 +120,5 @@ async function checkAndPostEngagement(discordClient) {
 }
 
 module.exports = { checkAndPostEngagement };
+
+

@@ -19,6 +19,7 @@ async function loadStateForGuild(guildId) {
         state.welcomeTemplate = null;
         state.controlRole = null;
         state.roleMilestones = {};
+        state.inviteRewardPoints = 1;
         state.commandStats = {};
         state.lastEngagementPostGeneral = null;
         state.lastEngagementPostTeam = null;
@@ -31,6 +32,7 @@ async function loadStateForGuild(guildId) {
             if (row.key === 'welcomeTemplate') state.welcomeTemplate = row.value;
             if (row.key === 'controlRole') state.controlRole = row.value;
             if (row.key === 'roleMilestones') state.roleMilestones = row.value;
+            if (row.key === 'inviteRewardPoints') state.inviteRewardPoints = Number(row.value) || 1;
             if (row.key === 'lastEngagementPostGeneral') state.lastEngagementPostGeneral = row.value;
             if (row.key === 'lastEngagementPostTeam') state.lastEngagementPostTeam = row.value;
         }
@@ -127,3 +129,4 @@ module.exports = {
     resetCommandUsage,
     saveQuestionToHistory
 };
+

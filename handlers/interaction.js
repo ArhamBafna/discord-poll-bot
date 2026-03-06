@@ -7,7 +7,6 @@ const { handleRank } = require('../commands/user/rank');
 const { handleHelp } = require('../commands/user/help');
 const { handlePoints } = require('../commands/admin/points');
 const { handleAsknow } = require('../commands/admin/asknow');
-const { handleReveal } = require('../commands/admin/reveal');
 const { handlePostdaily } = require('../commands/admin/postdaily');
 const { handleRelinkpoll } = require('../commands/admin/relinkpoll');
 const { handleResolve } = require('../commands/admin/resolve');
@@ -17,6 +16,7 @@ const { handleSetWelcome } = require('../commands/admin/setwelcome');
 const { handleSetControlRole } = require('../commands/admin/setcontrolrole');
 const { handleMilestones } = require('../commands/admin/milestones');
 const { handleSettings } = require('../commands/admin/settings');
+const { handleSetInvitePoints } = require('../commands/admin/setinvitepoints');
 
 async function handleInteractionCreate(interaction, discordClient) {
     try {
@@ -100,7 +100,7 @@ async function handleInteractionCreate(interaction, discordClient) {
         }
 
         // --- Admin Commands ---
-        if (!hasPermission && ['points', 'asknow', 'reveal', 'postdaily', 'relinkpoll', 'resolve', 'knowledge', 'setcc', 'setwelcome', 'setcontrolrole', 'milestones', 'settings'].includes(commandName)) {
+        if (!hasPermission && ['points', 'asknow', 'postdaily', 'relinkpoll', 'resolve', 'knowledge', 'setcc', 'setwelcome', 'setcontrolrole', 'invitepoints', 'milestones', 'settings'].includes(commandName)) {
             return interaction.reply({ content: "You don't have permission to use this command.", ephemeral: true });
         }
 
@@ -108,8 +108,6 @@ async function handleInteractionCreate(interaction, discordClient) {
             await handlePoints(interaction);
         } else if (commandName === 'asknow') {
             await handleAsknow(interaction, discordClient);
-        } else if (commandName === 'reveal') {
-            await handleReveal(interaction);
         } else if (commandName === 'postdaily') {
             await handlePostdaily(interaction, discordClient);
         } else if (commandName === 'relinkpoll') {
@@ -124,6 +122,8 @@ async function handleInteractionCreate(interaction, discordClient) {
             await handleSetWelcome(interaction);
         } else if (commandName === 'setcontrolrole') {
             await handleSetControlRole(interaction);
+        } else if (commandName === 'invitepoints') {
+            await handleSetInvitePoints(interaction);
         } else if (commandName === 'milestones') {
             await handleMilestones(interaction);
         } else if (commandName === 'settings') {
@@ -144,3 +144,6 @@ async function handleInteractionCreate(interaction, discordClient) {
 }
 
 module.exports = { handleInteractionCreate };
+
+
+

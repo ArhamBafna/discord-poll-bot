@@ -56,7 +56,7 @@ async function handleGuildMemberAdd(member, discordClient) {
         const state = stateManager.getServerState(member.guild.id);
         const ccUserId = state.ccUser;
         const welcomeTemplate = state.welcomeTemplate;
-        
+
         let ccUser = null;
         if (ccUserId) {
             ccUser = await member.guild.members.fetch(ccUserId).catch(() => null);
@@ -64,17 +64,19 @@ async function handleGuildMemberAdd(member, discordClient) {
             // Fallback to Arham (creator) if no CC user set
             ccUser = member.guild.members.cache.find(m => m.user.username === ALLOWED_USERNAME) || (await member.guild.members.fetch()).find(m => m.user.username === ALLOWED_USERNAME);
         }
-        
+
         let inviter = null;
-        let pointsMessage = "";
+        let pointsMessage = '';
 
         if (usedInvite && usedInvite.inviter) {
             inviter = await discordClient.users.fetch(usedInvite.inviter.id).catch(() => null);
             if (inviter) {
                 if (inviter.username !== 'mr.democracy._29458') {
-                    const newScore = await dbOperations.admin_setOrAddUserScore(member.guild.id, inviter.id, 1, 'add');
+                    const inviteRewardPoints = Math.max(0, Number(state.inviteRewardPoints) || 1);
+                    const newScore = await dbOperations.admin_setOrAddUserScore(member.guild.id, inviter.id, inviteRewardPoints, 'add');
                     if (newScore !== null) {
-                        pointsMessage = `i added a point to ${inviter}'s score for the invite!`;
+                        const unitLabel = inviteRewardPoints === 1 ? 'point' : 'points';
+                        pointsMessage = `i added ${inviteRewardPoints} ${unitLabel} to ${inviter}'s score for the invite!`;
                     }
                 }
             }
@@ -84,12 +86,12 @@ async function handleGuildMemberAdd(member, discordClient) {
             ).catch(err => console.error(`[INVITES_DB] Failed to update uses for invite ${usedInvite.code}`, err));
         }
 
-        let finalMessage = "";
+        let finalMessage = '';
         if (welcomeTemplate) {
             finalMessage = welcomeTemplate
                 .replace('{user}', member)
-                .replace('{inviter}', inviter || "someone unknown")
-                .replace('{cc}', ccUser || "the team")
+                .replace('{inviter}', inviter || 'someone unknown')
+                .replace('{cc}', ccUser || 'the team')
                 .replace('{points_msg}', pointsMessage);
         } else {
             // Default template

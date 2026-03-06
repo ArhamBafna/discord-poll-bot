@@ -14,13 +14,20 @@ const OVERLOAD_COOLDOWN_MS = 60000; // 1 minute of global silence if triggered
 
 // --- PROACTIVE ENGAGEMENT SETTINGS ---
 const passiveJumps = new Map(); // { channelId: timestamp } of last proactive jump
-const JUMP_COOLDOWN_MS = 1800000; // 30 minutes cooldown between proactive jumps per channel
-const JUMP_PROBABILITY = 0.72; // 72% chance to jump in if keywords match
-const PASSIVE_KEYWORDS = [
-    'ai', 'artificial intelligence', 'llm', 'machine learning', 'gpt', 'gemini', 'claude', 'openai', 'anthropic', 'bot', 'automation',
-    'owgt', 'oneworldgreatertogether', 'one world greater together', 'arham', 'artham', 'non-profit', 'education',
-    'poll', 'leaderboard', 'points', 'trivia', 'question', 'answer', 'rank', 'score', 'winner'
+const JUMP_COOLDOWN_MS = 1200000; // 20 minutes cooldown between proactive jumps per channel
+const JUMP_PROBABILITY = 0.62; // 62% chance to jump in if keywords match
+const BROAD_KEYWORDS = [
+    'ai', 'bot', 'question', 'answer'
 ];
+const MEDIUM_INTENT_KEYWORDS = [
+    'llm', 'machine learning', 'openai', 'gemini', 'gpt', 'claude', 'anthropic', 'automation', 'artificial intelligence'
+];
+const HIGH_INTENT_KEYWORDS = [
+    'leaderboard', 'trivia', 'owgt', 'oneworldgreatertogether', 'one world greater together', 'rank', 'points', 'poll', 'score', 'winner',
+    'arham', 'artham', 'non-profit', 'education'
+];
+const QUESTION_INTENT_SIGNALS = ['?', 'how', 'why', 'can someone', 'help'];
+const MIN_PROACTIVE_RELEVANCE_SCORE = 3;
 
 // --- NON-PING FOLLOW-UP CONTINUITY ---
 const activeUserSessions = new Map(); // { channelId-userId: timestamp }
@@ -49,6 +56,37 @@ function hasActiveSession(channelId, userId) {
 function isNoReplySignal(text) {
     if (!text) return false;
     return text.trim().toUpperCase() === NO_REPLY_SENTINEL;
+}
+
+function isLikelySessionFollowUp(lowerContent) {
+    if (!lowerContent) return false;
+    if (lowerContent.length < 8) return false;
+
+    const followUpSignals = [
+        '?', 'what do you mean', 'can you explain', 'explain', 'how', 'why', 'elaborate',
+        'what about', 'and if', 'then what', 'so', 'details', 'example', 'examples'
+    ];
+    return followUpSignals.some(signal => lowerContent.includes(signal));
+}
+
+function computeProactiveRelevanceScore(lowerContent) {
+    let score = 0;
+    for (const k of BROAD_KEYWORDS) {
+        if (lowerContent.includes(k)) score += 1;
+    }
+    for (const k of MEDIUM_INTENT_KEYWORDS) {
+        if (lowerContent.includes(k)) score += 2;
+    }
+    for (const k of HIGH_INTENT_KEYWORDS) {
+        if (lowerContent.includes(k)) score += 3;
+    }
+    for (const signal of QUESTION_INTENT_SIGNALS) {
+        if (lowerContent.includes(signal)) {
+            score += 1;
+            break;
+        }
+    }
+    return score;
 }
 
 function buildAiContents(chatHistory, promptForAI) {
@@ -86,9 +124,10 @@ async function handleMessageCreate(message, discordClient) {
         if (!shouldProcess) {
             // Passive listening logic
             const lowerContent = message.content.toLowerCase();
-            const hasKeyword = PASSIVE_KEYWORDS.some(k => lowerContent.includes(k));
+            const proactiveRelevanceScore = computeProactiveRelevanceScore(lowerContent);
+            const passesRelevanceThreshold = proactiveRelevanceScore >= MIN_PROACTIVE_RELEVANCE_SCORE;
 
-            if (hasKeyword) {
+            if (passesRelevanceThreshold) {
                 const lastJump = passiveJumps.get(message.channel.id);
                 const onCooldown = lastJump && (Date.now() - lastJump < JUMP_COOLDOWN_MS);
 
@@ -102,9 +141,12 @@ async function handleMessageCreate(message, discordClient) {
         }
 
         if (!shouldProcess && hasActiveSession(message.channel.id, message.author.id)) {
-            shouldProcess = true;
-            isSessionFollowUp = true;
-            console.log(`[FOLLOWUP][${message.guild.id}][#${message.channel.name}] Continuing conversation without ping for user ${message.author.id}.`);
+            const lowerFollowUpContent = message.content.toLowerCase();
+            if (isLikelySessionFollowUp(lowerFollowUpContent)) {
+                shouldProcess = true;
+                isSessionFollowUp = true;
+                console.log(`[FOLLOWUP][${message.guild.id}][#${message.channel.name}] Continuing conversation without ping for user ${message.author.id}.`);
+            }
         }
 
         if (shouldProcess) {
@@ -210,6 +252,9 @@ async function handleMessageCreate(message, discordClient) {
             if (isProactiveJump) {
                 finalSystemInstruction += `\n\nPROACTIVE INSTRUCTION: You are jumping into this conversation because you found it relevant to AI or OWGT. Do not wait to be mentioned. Be helpful or humorous as if you were just listening in and had something to add.`;
             }
+            if (isSessionFollowUp) {
+                finalSystemInstruction += `\n\nSESSION CONTINUATION INSTRUCTION: This is a possible follow-up from a recent user conversation with you. Reply only if the message clearly continues that discussion or directly asks for clarification/details. If not clearly directed at you, output exactly ${NO_REPLY_SENTINEL} and nothing else.`;
+            }
 
             // --- IDENTITY GUARD ---
             finalSystemInstruction += `\n\nCRITICAL IDENTITY INSTRUCTION: Distinguish carefully between similar names, specifically 'Arham' (the creator) and 'Artham' (OWGT's Founder). Do not confuse them.`;
@@ -237,7 +282,7 @@ async function handleMessageCreate(message, discordClient) {
 
             const canSilentlySkipReply = isProactiveJump || isSessionFollowUp;
             if (canSilentlySkipReply) {
-                finalSystemInstruction += `\n\nNON-PING SAFETY RULE: If you judge that the user's message was probably not meant for you, or replying would be irrelevant/awkward and would interrupt the chat, output exactly ${NO_REPLY_SENTINEL} and nothing else.`;
+                finalSystemInstruction += `\n\nNON-PING SAFETY RULE: If the message looks like social banter (greetings, jokes, one-liners, reactions), interpersonal human-to-human chat (for example "you said", "she/he", or inside jokes), has low intent (no clear question/help/request or actionable topic), or is off-topic for your role, output exactly ${NO_REPLY_SENTINEL} and nothing else.`;
             }
             // --- End Dynamic System Prompt ---
 
