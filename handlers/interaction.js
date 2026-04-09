@@ -133,6 +133,13 @@ async function handleInteractionCreate(interaction, discordClient) {
     } catch (error) {
         const commandIdentifier = interaction.isCommand() ? `/${interaction.commandName}` : `(ID: ${interaction.customId})`;
         console.error(`[INTERACTION_HANDLER] Error on ${commandIdentifier} in guild ${interaction.guild?.id}:`, error);
+
+        // Skip error reply for timed-out interactions (Discord error 10062)
+        if (error.code === 10062 || error.rawError?.code === 10062) {
+            console.warn(`[INTERACTION_HANDLER] Interaction timed out (10062). Skipping error reply.`);
+            return;
+        }
+
         try {
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({ content: "Oops! Something went wrong while executing this command.", ephemeral: true });
@@ -144,6 +151,4 @@ async function handleInteractionCreate(interaction, discordClient) {
 }
 
 module.exports = { handleInteractionCreate };
-
-
 

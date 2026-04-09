@@ -3,6 +3,8 @@ const ai = require('./client');
 const { triviaPollSchema } = require('./schemas');
 const serviceHelpers = require('../../lib/serviceHelpers');
 
+const MODEL_CHAIN = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+
 async function generateTextWithRetries(prompt, serviceKey = 'gemini') {
     const result = await serviceHelpers.callWithRetries(
         () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt }),
@@ -16,20 +18,29 @@ async function generateTextWithRetries(prompt, serviceKey = 'gemini') {
 }
 
 async function generatePollWithRetries(prompt, schema, temperature, serviceKey = 'gemini_poll') {
-    const result = await serviceHelpers.callWithRetries(
-        () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema, temperature: temperature } }),
-        { serviceKey, timeoutMs: 20000, maxAttempts: 3 }
-    );
+    let lastError = null;
 
-    if (result.status === 'success') {
-        try {
-            return { status: 'success', data: JSON.parse(result.data.text.trim()) };
-        } catch (parseError) {
-            console.error('[GEMINI] Failed to parse JSON response from AI:', parseError);
-            return { status: 'error', permanent: true, error: parseError };
+    for (const model of MODEL_CHAIN) {
+        console.log(`[GEMINI] Trying model: ${model}`);
+        const result = await serviceHelpers.callWithRetries(
+            () => ai.models.generateContent({ model, contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema, temperature } }),
+            { serviceKey, timeoutMs: 20000, maxAttempts: 3 }
+        );
+
+        if (result.status === 'success') {
+            try {
+                return { status: 'success', data: JSON.parse(result.data.text.trim()) };
+            } catch (parseError) {
+                console.error('[GEMINI] Failed to parse JSON response from AI:', parseError);
+                return { status: 'error', permanent: true, error: parseError };
+            }
         }
+
+        console.warn(`[GEMINI] Model ${model} failed. Trying next model...`);
+        lastError = result;
     }
-    return result;
+
+    return lastError || { status: 'error', permanent: false, error: new Error('All models failed') };
 }
 
 async function generateTriviaPoll(topic = '', history = []) {
