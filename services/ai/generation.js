@@ -3,7 +3,9 @@ const ai = require('./client');
 const { triviaPollSchema } = require('./schemas');
 const serviceHelpers = require('../../lib/serviceHelpers');
 
-const MODEL_CHAIN = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+// Model chain: primary stable → preview frontier → pro fallback
+// gemini-3.5-flash and gemini-1.5-flash were removed/never existed — do not use them.
+const MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-pro'];
 
 async function generateTextWithRetries(prompt, serviceKey = 'gemini') {
     const result = await serviceHelpers.callWithRetries(
