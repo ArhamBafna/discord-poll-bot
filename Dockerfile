@@ -1,5 +1,5 @@
 # JustRunMy.App: copy full source so `bot/client.js` and all modules exist at runtime.
-FROM node:22-alpine
+FROM node:20-alpine
 WORKDIR /app
 
 COPY package.json ./
