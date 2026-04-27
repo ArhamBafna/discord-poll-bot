@@ -1,6 +1,7 @@
-// --- Gemini API Generation Functions ---
+// --- AI Generation Functions (Gemini primary, OpenRouter fallback) ---
 const ai = require('./client');
 const { triviaPollSchema } = require('./schemas');
+const { generateTriviaPollWithOpenRouter, generateTextWithOpenRouter } = require('./openrouter');
 const serviceHelpers = require('../../lib/serviceHelpers');
 
 // Model chain: primary stable → preview frontier → pro fallback
@@ -15,7 +16,17 @@ async function generateTextWithRetries(prompt, serviceKey = 'gemini') {
     if (result.status === 'success') {
         return result.data.text.trim();
     }
-    console.error(`[GEMINI] Failed to generate text for service ${serviceKey}.`);
+    console.warn(`[GEMINI] Failed to generate text for service ${serviceKey}. Trying OpenRouter next.`);
+
+    const openRouterResult = await generateTextWithOpenRouter([
+        { role: 'user', content: prompt }
+    ], { serviceKey: `${serviceKey}_openrouter`, temperature: 0.7 });
+
+    if (openRouterResult.status === 'success') {
+        return openRouterResult.data.trim();
+    }
+
+    console.error(`[AI] Failed to generate text for service ${serviceKey} with both Gemini and OpenRouter.`);
     return null;
 }
 
@@ -62,7 +73,10 @@ ${historyInstruction}
 
     for (let attempt = 1; attempt <= MAX_UNIQUE_ATTEMPTS; attempt++) {
         const pollResult = await generatePollWithRetries(prompt, triviaPollSchema, 0.9, 'gemini_trivia');
-        if (pollResult.status !== 'success') return pollResult; // Propagate failure up
+        if (pollResult.status !== 'success') {
+            console.warn(`[GEMINI][TRIVIA] Gemini failed while generating a poll. Trying OpenRouter next. Status: ${pollResult.status}`);
+            break;
+        }
 
         const pollData = pollResult.data;
         const normalizedNewQuestion = pollData.question.toLowerCase().trim();
@@ -73,8 +87,53 @@ ${historyInstruction}
         console.warn(`[GEMINI][UNIQUE] Generated a duplicate trivia question on attempt ${attempt}/${MAX_UNIQUE_ATTEMPTS}. Retrying for a unique one...`);
     }
 
-    console.error(`[GEMINI] CRITICAL: Failed to generate a unique trivia poll after ${MAX_UNIQUE_ATTEMPTS} attempts.`);
-    return { status: 'error', permanent: false, error: new Error('Failed to generate unique question') };
+    console.warn('[GEMINI][TRIVIA] Gemini did not return a usable unique poll. Trying OpenRouter free fallback.');
+    const openRouterResult = await generateTriviaPollWithOpenRouter(prompt, 0.9);
+    if (openRouterResult.status === 'success') {
+        const normalizedNewQuestion = openRouterResult.data.question.toLowerCase().trim();
+        if (!normalizedHistory.has(normalizedNewQuestion)) {
+            return openRouterResult;
+        }
+        console.warn('[OPENROUTER][UNIQUE] OpenRouter generated a duplicate trivia question. Falling back to preset polls.');
+    }
+
+    console.error('[AI] CRITICAL: Failed to generate a unique trivia poll with both Gemini and OpenRouter.');
+    return { status: 'error', permanent: false, error: new Error('Failed to generate unique question with Gemini and OpenRouter') };
+}
+
+async function generateChatResponseWithRetries(chatHistory, promptForAI, systemInstruction, options = {}) {
+    const {
+        serviceKey = 'gemini_chat',
+        temperature = 0.7,
+        maxAttempts = 2,
+        timeoutMs = 8000
+    } = options;
+
+    const aiContents = [
+        ...(Array.isArray(chatHistory) ? chatHistory : []),
+        { role: 'user', parts: [{ text: promptForAI }] }
+    ];
+
+    const geminiResult = await serviceHelpers.callWithRetries(
+        () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: aiContents, config: { systemInstruction } }),
+        { serviceKey, maxAttempts, timeoutMs }
+    );
+
+    if (geminiResult.status === 'success') {
+        return { status: 'success', data: (geminiResult.data?.text || '').trim(), source: 'gemini' };
+    }
+
+    console.warn(`[GEMINI] Chat generation failed for ${serviceKey}. Trying OpenRouter next.`);
+    const openRouterResult = await generateTextWithOpenRouter(
+        aiContents,
+        { serviceKey: `${serviceKey}_openrouter`, temperature, systemInstruction }
+    );
+
+    if (openRouterResult.status === 'success') {
+        return { status: 'success', data: openRouterResult.data.trim(), source: 'openrouter' };
+    }
+
+    return { status: 'error', permanent: false, error: openRouterResult.error || geminiResult.error || new Error('Failed to generate chat response') };
 }
 
 async function buildConversationHistory(message, discordClient, options = {}) {
@@ -141,7 +200,8 @@ module.exports = {
     generateTextWithRetries,
     generatePollWithRetries,
     generateTriviaPoll,
-    buildConversationHistory
+    buildConversationHistory,
+    generateChatResponseWithRetries
 };
 
 

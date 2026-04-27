@@ -34,15 +34,10 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false) {
         let usedFallback = false;
 
         if (pollResult.status !== 'success') {
-            console.warn(`[POLL][FALLBACK] Gemini API failed. Status: ${pollResult.status}. Deploying a fallback poll.`);
+            console.warn(`[POLL][FALLBACK] Gemini and OpenRouter both failed. Status: ${pollResult.status}. Deploying a preset fallback poll.`);
             serviceHelpers.metrics.fallback_served++;
             usedFallback = true;
-            const lastPoll = state.lastSuccessfulPoll;
-            if (lastPoll && lastPoll.type === 'trivia') {
-                newPollData = { ...lastPoll, isFallback: true };
-            } else {
-                newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], isFallback: true };
-            }
+            newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], isFallback: true };
         } else {
             newPollData = pollResult.data;
         }
@@ -50,7 +45,7 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false) {
         if (newPollData) {
             newPollData.type = 'trivia'; // All polls are now trivia
             let pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll! 😅" : "@everyone **Today's AI Poll!** 🧠";
-            if (usedFallback) pollIntroMessage += `\n*(posted using fallback because the AI service was unavailable)*`;
+            if (usedFallback) pollIntroMessage += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
 
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
             newPollData.pollMessageId = newPollMessage.id;
@@ -66,7 +61,7 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false) {
 
             console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
         } else {
-            console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not generate a poll from Gemini or use a fallback.`);
+            console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not generate a poll from Gemini, OpenRouter, or a fallback preset.`);
         }
     } catch (error) {
         console.error(`[POLL][Channel: ${channelId}] Critical error during daily post:`, error);

@@ -12,4 +12,33 @@ const triviaPollSchema = {
     required: ["question", "options", "correctAnswerIndex", "explanation"]
 };
 
-module.exports = { triviaPollSchema };
+const triviaPollJsonSchema = {
+    type: 'object',
+    properties: {
+        question: {
+            type: 'string',
+            description: 'The trivia question to ask in the poll.'
+        },
+        options: {
+            type: 'array',
+            items: { type: 'string' },
+            minItems: 4,
+            maxItems: 4,
+            description: 'Exactly four answer choices.'
+        },
+        correctAnswerIndex: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 3,
+            description: 'The zero-based index of the correct answer.'
+        },
+        explanation: {
+            type: 'string',
+            description: 'A short explanation of why the answer is correct.'
+        }
+    },
+    required: ['question', 'options', 'correctAnswerIndex', 'explanation'],
+    additionalProperties: false
+};
+
+module.exports = { triviaPollSchema, triviaPollJsonSchema };

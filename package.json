@@ -1,7 +1,7 @@
 {
   "name": "discord-ai-poll-bot",
   "version": "1.0.0",
-  "description": "A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls, powered by the Gemini API.",
+  "description": "A fully automated Discord Bot that posts a dynamic mix of daily trivia and discussion polls, powered by Gemini with OpenRouter fallback.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

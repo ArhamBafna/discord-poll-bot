@@ -118,7 +118,7 @@ When someone joins your server via an **invite link**:
 | Feature | Description |
 |---------|-------------|
 | **Missed Poll Catch-up** | If the bot was offline and missed the 6 AM slot, it automatically detects this on startup and posts the daily poll to catch up. |
-| **Fallback Polls** | If the Gemini AI API fails, the bot deploys a fallback poll so your community always gets a question. |
+| **Fallback Polls** | If Gemini fails, the bot tries OpenRouter/free next, then falls back to a preset poll so your community always gets a question. |
 | **Overload Protection** | When the AI is busy, the bot queues conversation requests and replies when it can — or asks users to try again in a minute. |
 - **Spam Protection:** A cooldown prevents users from flooding the bot with conversation requests.
 - **Automated Community Engagement:** Periodic friendly reminders to #general (every 14 days) and #team (every 9 days) to encourage feature discovery based on command usage stats.

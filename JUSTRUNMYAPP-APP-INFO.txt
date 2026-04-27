@@ -1,17 +1,18 @@
-JustRunMy.App — app created 2026-04-02
+JustRunMy.App - app created 2026-04-02
 
 Application ID: 16345
 Dashboard name: Git r_Sg6q2 (rename in panel if rename failed)
-Git remote (add username:password from panel → Settings → Git):
+Git remote (add username:password from panel -> Settings -> Git):
   https://justrunmy.app/git/r_Sg6q2
 
 Health / keepAlive URL (HTTPS): https://a16345-a4fa.f.jrnm.app
 
-Required environment variables (set in JustRunMy → App → Environment):
-  DISCORD_BOT_TOKEN   — Discord bot token
-  API_KEY             — Google Gemini API key
-  DATABASE_URL        — Postgres connection string (e.g. Neon)
-  TARGET_CHANNEL_IDS  — comma-separated Discord channel IDs
+Required environment variables (set in JustRunMy -> App -> Environment):
+  DISCORD_BOT_TOKEN   - Discord bot token
+  API_KEY             - Google Gemini API key
+  OPENROUTER_API_KEY  - Optional OpenRouter API key used as the poll-generation fallback
+  DATABASE_URL        - Postgres connection string (e.g. Neon)
+  TARGET_CHANNEL_IDS  - comma-separated Discord channel IDs
 
 Already set: PORT=3000, NODE_ENV=production
 

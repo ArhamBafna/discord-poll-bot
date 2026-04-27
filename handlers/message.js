@@ -1,10 +1,9 @@
 // --- Conversational AI Handler ---
 const stateManager = require('../state/manager');
 const dbOperations = require('../database/operations');
-const { buildConversationHistory } = require('../services/ai/generation');
+const { buildConversationHistory, generateChatResponseWithRetries } = require('../services/ai/generation');
 const { ALLOWED_USERNAME } = require('../config');
 const serviceHelpers = require('../lib/serviceHelpers');
-const ai = require('../services/ai/client');
 
 // State management for spam protection
 const userCooldowns = new Map(); // { userId: timestamp }
@@ -287,15 +286,15 @@ async function handleMessageCreate(message, discordClient) {
             // --- End Dynamic System Prompt ---
 
             const aiContents = buildAiContents(chatHistoryForAI, promptForAI);
-
-            // Attempt to send immediately. If circuit is open or error, enqueue it.
-            const result = await serviceHelpers.callWithRetries(
-                () => ai.models.generateContent({ model: 'gemini-2.5-flash', contents: aiContents, config: { systemInstruction: finalSystemInstruction } }),
-                { serviceKey: 'gemini_chat', maxAttempts: 2, timeoutMs: 8000 } // Fail faster to queue faster
-            );
+            const result = await generateChatResponseWithRetries(chatHistoryForAI, promptForAI, finalSystemInstruction, {
+                serviceKey: 'gemini_chat',
+                temperature: 0.7,
+                maxAttempts: 2,
+                timeoutMs: 8000
+            });
 
             if (result.status === 'success') {
-                const rawReply = (result.data?.text || '').trim();
+                const rawReply = (result.data || '').trim();
                 if (!rawReply) return;
 
                 if (canSilentlySkipReply && isNoReplySignal(rawReply)) {
@@ -310,8 +309,11 @@ async function handleMessageCreate(message, discordClient) {
                     await message.reply(reply);
                     markActiveSession(message.channel.id, message.author.id);
                 }
-            } else if (result.status === 'circuit_open' || result.status === 'error') {
-                if (isProactiveJump) return; // Don't queue proactive jumps to avoid confusion
+            } else {
+                if (isProactiveJump) {
+                    await message.channel.send("i tried processing that, but both ai routes were unavailable. try again in a minute.");
+                    return;
+                }
 
                 const position = serviceHelpers.enqueueConvRequest(message, {
                     systemInstruction: finalSystemInstruction,
