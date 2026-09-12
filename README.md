@@ -50,25 +50,25 @@ Startup: role sync and invite caching run in the background so login is not bloc
 
 Only ar_him or members with the control role can run these. The default control role is bot-control. Change it with /setcontrolrole.
 
-| Command | Description |
-|---------|-------------|
-| /settings | Shows current bot settings. |
-| /points add @user <amount> | Adds points to a user. |
-| /points remove @user <amount> | Removes points. Score never goes below 0. |
-| /points set @user <amount> | Sets score to an exact value. |
-| /knowledge update <topic> | Opens a form to add or change text for one topic. Each topic holds up to 4000 characters. |
-| /knowledge list | Lists all saved topics. |
-| /knowledge delete <topic> | Deletes one topic. |
-| /milestones add <points> <@role> | Gives the role to members who reach the point total. |
-| /milestones remove <points> | Removes the milestone for that point total. |
-| /invitepoints <points> | Sets points per successful invite. 0 turns rewards off. Range 0 to 100. |
-| /asknow [topic] | Posts an on-demand trivia poll now. Does not award points. Only one can be active per server. With no topic, uses a general AI topic. |
-| /postdaily | Runs the daily poll sequence now (posts last answer, then a new daily poll). |
-| /relinkpoll <message_id> <correct_option> | Points the bot at a specific poll message to track for the next reveal. Example: /relinkpoll 135123456789012345 3 means option C is correct. |
-| /resolve <poll> | Ends a poll now and posts the answer. Use on-demand or daily. Awards points for daily trivia. |
-| /setcc <@user> | Sets the user named in welcome messages. |
-| /setwelcome <template> | Sets the welcome message text. Placeholders: {user}, {inviter}, {cc}, {points_msg}. |
-| /setcontrolrole <@role> | Sets which role can run admin commands. |
+| Command | Access | Description |
+|---------|--------|-------------|
+| /settings | admin | Shows current bot settings. |
+| /points add @user <amount> | admin | Adds points to a user. |
+| /points remove @user <amount> | admin | Removes points. Score never goes below 0. |
+| /points set @user <amount> | admin | Sets score to an exact value. |
+| /knowledge update <topic> | admin | Opens a form to add or change text for one topic. Each topic holds up to 4000 characters. |
+| /knowledge list | admin | Lists all saved topics. |
+| /knowledge delete <topic> | admin | Deletes one topic. |
+| /milestones add <points> <@role> | admin | Gives the role to members who reach the point total. |
+| /milestones remove <points> | admin | Removes the milestone for that point total. |
+| /invitepoints <points> | admin | Sets points per successful invite. 0 turns rewards off. Range 0 to 100. |
+| /asknow [topic] | admin | Posts an on-demand trivia poll now. Does not award points. Only one can be active per server. With no topic, uses a general AI topic. |
+| /postdaily | admin | Runs the daily poll sequence now (posts last answer, then a new daily poll). |
+| /relinkpoll <message_id> <correct_option> | admin | Points the bot at a specific poll message to track for the next reveal. Example: /relinkpoll 135123456789012345 3 means option C is correct. |
+| /resolve <poll> | admin | Ends a poll now and posts the answer. Use on-demand or daily. Awards points for daily trivia. |
+| /setcc <@user> | admin | Sets the user named in welcome messages. |
+| /setwelcome <template> | admin | Sets the welcome message text. Placeholders: {user}, {inviter}, {cc}, {points_msg}. |
+| /setcontrolrole <@role> | admin | Sets which role can run admin commands. |
 
 ## Knowledge topics
 
@@ -77,4 +77,4 @@ Only ar_him or members with the control role can run these. The default control 
 3. Run /knowledge list to see all topics.
 4. The bot uses all saved topics when answering questions.
 
-Built for OWGT (OneWorldGreaterTogether).
+Built with [linktr.ee/owgt](https://linktr.ee/owgt) for OWGT (OneWorldGreaterTogether).
