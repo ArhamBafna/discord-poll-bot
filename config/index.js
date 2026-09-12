@@ -1,10 +1,3 @@
-// --- Configuration & Environment Variables ---
-
-// --- Network Hardening & IPv4 Enforcement ---
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
-
-// --- Environment Variables ---
 const GEMINI_API_KEY = process.env.API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -13,23 +6,28 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const ALLOWED_USERNAME = 'ar_him';
 const CONTROL_ROLE_NAME = 'bot-control';
 
-// --- Critical Environment Variable Check ---
-if (!GEMINI_API_KEY || !DISCORD_BOT_TOKEN || !TARGET_CHANNEL_IDS.length || !DATABASE_URL) {
-    console.error("CRITICAL ERROR: Make sure API_KEY, DISCORD_BOT_TOKEN, DATABASE_URL, and TARGET_CHANNEL_IDS are set in your environment variables. TARGET_CHANNEL_IDS should be a comma-separated list.");
-    process.exit(1);
+function applyNetworkDefaults() {
+    const dns = require('dns');
+    dns.setDefaultResultOrder('ipv4first');
 }
 
-// --- Database Connection Sanitization ---
-let sanitizedDbUrl = DATABASE_URL;
-try {
-    const dbUrl = new URL(DATABASE_URL);
-    if (dbUrl.searchParams.has('transaction_timeout')) {
-        dbUrl.searchParams.delete('transaction_timeout');
-        sanitizedDbUrl = dbUrl.toString();
-        console.log('[DATABASE] Removed unsupported "transaction_timeout" parameter from DB connection string.');
+function validateConfig() {
+    if (!GEMINI_API_KEY || !DISCORD_BOT_TOKEN || !TARGET_CHANNEL_IDS.length || !DATABASE_URL) {
+        throw new Error('Missing env: set API_KEY, DISCORD_BOT_TOKEN, DATABASE_URL, and TARGET_CHANNEL_IDS (comma-separated list).');
     }
-} catch (e) {
-    console.error('[DATABASE] Could not parse DATABASE_URL. Using it as is.', e);
+}
+
+function getSanitizedDbUrl() {
+    try {
+        const dbUrl = new URL(DATABASE_URL);
+        if (dbUrl.searchParams.has('transaction_timeout')) {
+            dbUrl.searchParams.delete('transaction_timeout');
+            return dbUrl.toString();
+        }
+    } catch (e) {
+        throw new Error('DATABASE_URL is not a valid URL.');
+    }
+    return DATABASE_URL;
 }
 
 module.exports = {
@@ -37,7 +35,10 @@ module.exports = {
     OPENROUTER_API_KEY,
     DISCORD_BOT_TOKEN,
     TARGET_CHANNEL_IDS,
-    DATABASE_URL: sanitizedDbUrl,
+    DATABASE_URL,
+    getSanitizedDbUrl,
     ALLOWED_USERNAME,
-    CONTROL_ROLE_NAME
+    CONTROL_ROLE_NAME,
+    applyNetworkDefaults,
+    validateConfig
 };

@@ -1,6 +1,7 @@
 // --- Bot Ready Event Handler ---
 const { Routes } = require('discord.js');
 const cron = require('node-cron');
+const { log } = require('../utils/logger');
 const { initializeDatabase } = require('../database/initialization');
 const { commands, rest } = require('../commands/definitions');
 const { cacheAndSyncInvites } = require('../services/invites/tracking');
@@ -14,9 +15,9 @@ const dbOperations = require('../database/operations');
 const stateManager = require('../state/manager');
 
 async function handleReady(discordClient) {
-    console.log('--- Bot is starting up ---');
+    log('Bot is starting up.', 'STARTUP');
     await initializeDatabase();
-    console.log(`Logged in as ${discordClient.user.tag}!`);
+    log(`Logged in as ${discordClient.user.tag}!`, 'STARTUP');
 
     try {
         const guilds = Array.from(discordClient.guilds.cache.values());
@@ -38,13 +39,13 @@ async function handleReady(discordClient) {
                     // 2. Invite Caching
                     await cacheAndSyncInvites(guild);
                 } catch (err) {
-                    console.error(`[STARTUP][${guild.id}] Background task failed:`, err);
+                    log(`Background task failed for guild ${guild.id}: ${err.message}`, 'STARTUP');
                 }
             })();
         }
-        console.log(`[STARTUP] Commands refreshed and background tasks started for ${guilds.length} guilds.`);
+        log(`Commands refreshed and background tasks started for ${guilds.length} guilds.`, 'STARTUP');
     } catch (error) {
-        console.error('[STARTUP] Failed during guild initialization:', error);
+        log(`Failed during guild initialization: ${error.message}`, 'STARTUP');
     }
 
     TARGET_CHANNEL_IDS.forEach(channelId => {
@@ -55,12 +56,12 @@ async function handleReady(discordClient) {
     // Engagement scanning is global and already iterates all guilds.
     cron.schedule('0 10 * * *', () => checkAndPostEngagement(discordClient), { scheduled: true, timezone: 'America/New_York' });
 
-    serviceHelpers.startConvQueueWorker(discordClient); // Start the background queue processor
-    console.log('--- Bot is fully operational. ---');
+    serviceHelpers.startConvQueueWorker(discordClient);
+    log('Bot is fully operational.', 'STARTUP');
 
-    console.log('[STARTUP] Backgrounding catch-up check and initial engagement check...');
-    checkForMissedPolls(discordClient).catch(err => console.error('[STARTUP] Catch-up check failed.', err));
-    checkAndPostEngagement(discordClient).catch(err => console.error('[STARTUP] Initial engagement check failed.', err));
+    log('Backgrounding catch-up check and initial engagement check...', 'STARTUP');
+    checkForMissedPolls(discordClient).catch(err => log(`Catch-up check failed: ${err.message}`, 'STARTUP'));
+    checkAndPostEngagement(discordClient).catch(err => log(`Initial engagement check failed: ${err.message}`, 'STARTUP'));
 }
 
 module.exports = { handleReady };

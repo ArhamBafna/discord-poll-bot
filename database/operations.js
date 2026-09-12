@@ -3,7 +3,6 @@ const pool = require('./connection');
 const stateManager = require('../state/manager');
 
 async function loadStateForGuild(guildId) {
-    // console.log(`[STATE] Loading state from DB for server ${guildId}...`);
     const state = stateManager.getServerState(guildId);
     const client = await pool.connect();
     try {
@@ -45,8 +44,6 @@ async function loadStateForGuild(guildId) {
         const knowledgeRes = await client.query('SELECT key, value FROM knowledge_base WHERE guild_id = $1', [guildId]);
         state.knowledgeBase = {};
         knowledgeRes.rows.forEach(row => { state.knowledgeBase[row.key] = row.value; });
-
-        // console.log(`[STATE] State loaded for guild ${guildId}.`);
     } catch (error) {
         console.error(`[STATE] CRITICAL ERROR loading state for server ${guildId}:`, error);
     } finally {

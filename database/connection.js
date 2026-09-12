@@ -1,7 +1,6 @@
-// --- Database Connection Setup ---
 const { Pool } = require('pg');
-const { DATABASE_URL } = require('../config');
+const { getSanitizedDbUrl } = require('../config');
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool({ connectionString: getSanitizedDbUrl() });
 
 module.exports = pool;

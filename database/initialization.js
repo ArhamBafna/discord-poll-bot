@@ -1,5 +1,5 @@
-// --- Database Initialization ---
 const pool = require('./connection');
+const { log } = require('../utils/logger');
 
 async function initializeDatabase() {
     const client = await pool.connect();
@@ -10,10 +10,10 @@ async function initializeDatabase() {
         await client.query(`CREATE TABLE IF NOT EXISTS knowledge_base (guild_id VARCHAR(255) NOT NULL, key VARCHAR(255) NOT NULL, value TEXT NOT NULL, PRIMARY KEY (guild_id, key));`);
         await client.query(`CREATE TABLE IF NOT EXISTS invites (guild_id VARCHAR(255) NOT NULL, code VARCHAR(255) NOT NULL, inviter_id VARCHAR(255) NOT NULL, uses INT NOT NULL DEFAULT 0, PRIMARY KEY (guild_id, code));`);
         await client.query(`CREATE TABLE IF NOT EXISTS command_stats (guild_id VARCHAR(255) NOT NULL, command_name VARCHAR(255) NOT NULL, uses INT NOT NULL DEFAULT 0, PRIMARY KEY (guild_id, command_name));`);
-        console.log('[DATABASE] All tables are set up for multi-server support.');
+        log('All tables are set up for multi-server support.', 'DATABASE');
     } catch (error) {
-        console.error('[DATABASE] CRITICAL ERROR: Failed to initialize database.', error);
-        process.exit(1);
+        log('Failed to initialize database.', 'ERROR');
+        throw error;
     } finally {
         client.release();
     }
