@@ -1,180 +1,80 @@
-<div align="center">
+# OWGT Bot
 
-# 🤖 <span style="color: #5865F2; font-size: 1.5em; font-weight: bold;">OWGT Bot</span> 🏆
+OWGT Bot posts a daily AI poll in Discord and keeps score.
 
-### <span style="color: #57F287;">AI-Powered Poll Bot for Discord</span>
+## Overview
 
-*Enhancing community engagement with daily trivia, AI conversation, and automated leaderboards*
+OWGT Bot posts one poll each day at 6:00 AM Eastern Time in the channels set by the owner. Polls cover AI topics. Some days the poll is trivia with one correct answer. Other days it is a discussion poll with no correct answer.
 
-![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![Gemini AI](https://img.shields.io/badge/Gemini_AI-4285F4?style=for-the-badge&logo=google&logoColor=white)
+Before each new daily poll, the bot posts the answer to the last trivia poll, with an explanation and the list of members who voted correctly. Correct votes on daily trivia polls earn 1 point each on the leaderboard.
 
----
+The bot also replies when mentioned or when replying to its messages, using past conversation and saved topics for context.
 
-</div>
+Every Sunday at 9:00 PM Eastern Time, the bot posts a weekly summary with the top 10 members for each server.
 
-## 📑 Table of Contents
+If the bot was offline at 6 AM, it posts the missed daily poll on startup. If the AI services fail, it uses a preset poll so the daily post still appears.
 
-- [Overview](#-overview)
-- [Core Features](#-core-features)
-- [Leaderboard System](#-the-leaderboard-system-fully-automatic)
-- [Invite Rewards](#-bonus-invite-rewards)
-- [Reliability Features](#-reliability-features)
-- [User Commands](#-user-commands-available-to-everyone)
-- [Administrator Commands](#-administrator-commands)
-- [Managing the Bot's Knowledge](#-managing-the-bots-knowledge)
+## Leaderboard
 
----
+Only daily trivia polls award points. Discussion polls and on-demand polls do not award points.
 
-## 📋 Overview
+To earn a point, vote for the correct answer on the daily trivia poll. After 24 hours the bot counts correct votes and adds 1 point per correct voter. No emoji reaction is needed.
 
-The **OWGT Bot** is a sophisticated, AI-powered tool designed to enhance community engagement across multiple Discord servers.
+Role milestones: admins can link point totals to Discord roles. When a member reaches a milestone, the bot assigns the new role, removes the old milestone role, and posts a note in the channel.
 
-It automatically posts a dynamic mix of **daily trivia** and **discussion polls** about Artificial Intelligence.
+## Invite rewards
 
-Key features include a **fully automated leaderboard system**, a **weekly AI-generated performance summary**, a **suite of on-demand commands** for administrators, and **auto-reply behavior** when the bot thinks it should jump into the conversation.
+When a member joins through an invite link, the bot posts a welcome message in the system channel, names the inviter when it can find one, and gives the inviter points. The default is 1 point per invite. Admins can change this with /invitepoints, including 0 to turn rewards off.
 
----
+Admins can set a custom welcome template with /setwelcome and set a user to CC with /setcc.
 
-## ✨ Core Features
+## Reliability
 
-### 📅 Daily Scheduled Polls
+Missed poll catch-up: on startup the bot checks for a missed 6 AM poll and posts it.
 
-- **When:** Every day at **6:00 AM Eastern Time (ET)**.
-- **What:** The bot posts a new poll in its designated channel(s).
+Fallback polls: if the main AI fails, the bot tries the backup provider, then a preset poll.
 
-**Trivia Polls:**
-- A multiple-choice question about AI with one correct answer.
-- Designed to be fun and educational.
-- The bot remembers recent questions to avoid repetition.
+Spam protection: conversation requests have a cooldown to stop flooding.
 
-### 📢 Automated Answer Reveals & Follow-ups
+Startup: role sync and invite caching run in the background so login is not blocked.
 
-Right before posting the new daily poll, the bot provides a follow-up to the previous day's trivia poll:
-
-- The bot posts a professional-looking **Embed** that clearly states the correct answer (A, B, C, or D) and provides a detailed, AI-generated explanation.
-- It also announces how many members answered correctly and confirms that points have been automatically awarded.
-
-### 🤖 Conversational AI
-
-The bot is not just for polls! You can have a **natural conversation** with it.
-
-**How to Trigger**
-- Mention the bot directly (e.g., `@OWGT Bot how are you?`)
-- Reply to any of the bot's messages (including polls and answers)
-
-**What it Does**
-- Replies in a natural, chat-style way.
-- Uses recent conversation context and what it already knows.
-- Sometimes auto-replies when it thinks it should jump in.
-
-### 📊 Weekly Leaderboard Summary
-
-- Every **Sunday at 9:00 PM Eastern Time (ET)**, the bot posts a weekly report with a short summary and the **Top 10** members for that server.
-
----
-
-## 🏅 The Leaderboard System (Fully Automatic!)
-
-### How to Earn Points
-
-- Only the **daily scheduled trivia polls** count towards the leaderboard.
-- Discussion polls and on-demand polls **do not** award points.
-
-### How to Claim a Point
-
-The system is **100% automatic.**
-
-1. Simply vote for the correct answer on the Discord poll itself.
-2. The poll runs for **24 hours**. When it ends, the bot automatically identifies everyone who voted correctly and adds **1 point** to their score.
-3. **No emoji reactions needed** — just vote!
-
-### 🎖️ Role Milestones
-
-The bot automatically rewards top participants with special Discord roles based on their total points.
-- **Automated:** Roles are assigned as soon as you hit a point milestone.
-- **Progression:** When you hit a higher milestone, your previous milestone role is replaced with the new, more prestigious one.
-- **Celebration:** The bot announces your achievement in the channel!
-
-*Score: Each correctly answered daily trivia poll is worth **1 point**. The bot maintains a persistent score for you on each server.*
-
----
-
-## 🎁 Bonus: Invite Rewards
-
-When someone joins your server via an **invite link**:
-
-- The bot **welcomes them** in the system channel.
-- It identifies **who invited them** (when possible).
-- **Automatically awards 1 point** to the inviter for each successful invite! 🎉
-- If the inviter can't be determined, the bot still welcomes the new member warmly.
-- **Customizable:** Administrators can set a custom welcome template and a specific user to CC in the message.
-
----
-
-## ⚡ Reliability Features
-
-| Feature | Description |
-|---------|-------------|
-| **Missed Poll Catch-up** | If the bot was offline and missed the 6 AM slot, it automatically detects this on startup and posts the daily poll to catch up. |
-| **Fallback Polls** | If Gemini fails, the bot tries OpenRouter/free next, then falls back to a preset poll so your community always gets a question. |
-| **Overload Protection** | When the AI is busy, the bot queues conversation requests and replies when it can — or asks users to try again in a minute. |
-- **Spam Protection:** A cooldown prevents users from flooding the bot with conversation requests.
-- **Automated Community Engagement:** Periodic friendly reminders to #general (every 14 days) and #team (every 9 days) to encourage feature discovery based on command usage stats.
-- **Proactive AI Conversation:** The bot can intelligently "jump in" to conversations about AI or OWGT topics, even without being mentioned, making it feel like a real part of the community.
-- **Optimized Startup:** Background processes ensure the bot is online instantly, syncing roles and invites without blocking connectivity.
-
-
----
-
-## 📜 User Commands (Available to Everyone)
-
-| Command | Description | Output |
-|---------|-------------|--------|
-| `/leaderboard` | Displays the current leaderboard standings. | An embed showing the top 10 users with the most points. |
-| `/rank [@user]` | Checks the rank of a user on the server's leaderboard. | **`/rank`** — Shows your own rank and score.<br>**`/rank @SomeUser`** — Shows the mentioned user's rank and score. |
-| `/help` | Displays a helpful embed listing all available commands. | Shows User Commands and Administrator Commands (if you have permissions). |
-
----
-
-## 🔧 Administrator Commands
-
-**Permissions:** These commands can only be used by **ar_him** or users with the **administrative role** (default is **@bot-control**, but this can be changed with `/setcontrolrole`).
+## User commands
 
 | Command | Description |
 |---------|-------------|
-| `/settings` | Displays an overview of the current bot configuration, including permissions, welcome template, role milestones, and active states. |
-| `/setcontrolrole <@role>` | Sets a new administrative role for the server. Members with this role will be able to run all admin commands. |
-| `/milestones <add\|remove> [params]` | Manage role milestones.<br>• **add** `<points> <@role>` — Adds a milestone.<br>• **remove** `<points>` — Removes a milestone. |
-| `/setcc <@user>` | Sets the user to be CC'd in the server's welcome messages. Defaults to the bot creator. |
-| `/setwelcome <template>` | Sets a custom welcome message. Use placeholders: `{user}`, `{inviter}`, `{cc}`, and `{points_msg}`. |
-| `/asknow [optional topic]` | Instantly generates a new, on-demand trivia poll. On-demand polls **do not affect** the leaderboard. Only one can be active on a server at a time.<br>• **`/asknow`** — Generates a poll on a random, general AI topic.<br>• **`/asknow Large Language Models`** — Generates a poll about the provided topic. |
-| `/reveal` | Ends the active on-demand poll and reveals its answer. Posts an embed with the correct answer and a detailed explanation. |
-| `/postdaily` | Manually triggers the daily poll sequence (posts the previous answer, then the new daily poll) in the channel. Useful for testing or correcting a schedule issue. |
-| `/points <add\|remove\|set> <@user> <amount>` | Manually adjusts a user's score. Perfect for giveaways, correcting scores, or rewarding positive behavior.<br>• **add** — Adds points.<br>• **remove** — Subtracts points (cannot go below 0).<br>• **set** — Sets score to an exact value. |
-| `/relinkpoll <message_id> <correct_option_#>` | Recovery tool: Fixes the bot's memory to track a specific poll for the next daily reveal. Use if a daily poll was manually deleted or an error caused a duplicate.<br>**Example:** `/relinkpoll 135123456789012345 3` — Option C is correct. |
-| `/resolve` | Forces the bot to **immediately** resolve the poll in its memory. Awards points and posts the answer embed, but does **not** post a new daily poll.<br>**Usage:** Use `/relinkpoll` first to point to the missed poll, then run `/resolve` to sync the leaderboard and schedule. |
-| `/update-knowledge <topic>` | Opens a form to add or update information for a specific topic (e.g., mission, team, ai-basics). Each topic can hold up to 4,000 characters. |
-| `/knowledge-list` | Lists all topics currently in the bot's knowledge base. |
-| `/knowledge-delete <topic>` | Deletes a specific topic from the knowledge base. |
+| /leaderboard | Shows the top 10 members by points on this server. |
+| /rank [@user] | Shows rank and score for yourself, or for the named user. |
+| /help | Lists all commands. Shows admin commands too, marked as admin. |
 
----
+## Administrator commands
 
-## 📚 Managing the Bot's Knowledge
+Only ar_him or members with the control role can run these. The default control role is bot-control. Change it with /setcontrolrole.
 
-You can teach the bot about your community, non-profit, or AI topics directly from Discord using **Topics**. This avoids character limits and keeps information organized.
+| Command | Description |
+|---------|-------------|
+| /settings | Shows current bot settings. |
+| /points add @user <amount> | Adds points to a user. |
+| /points remove @user <amount> | Removes points. Score never goes below 0. |
+| /points set @user <amount> | Sets score to an exact value. |
+| /knowledge update <topic> | Opens a form to add or change text for one topic. Each topic holds up to 4000 characters. |
+| /knowledge list | Lists all saved topics. |
+| /knowledge delete <topic> | Deletes one topic. |
+| /milestones add <points> <@role> | Gives the role to members who reach the point total. |
+| /milestones remove <points> | Removes the milestone for that point total. |
+| /invitepoints <points> | Sets points per successful invite. 0 turns rewards off. Range 0 to 100. |
+| /asknow [topic] | Posts an on-demand trivia poll now. Does not award points. Only one can be active per server. With no topic, uses a general AI topic. |
+| /postdaily | Runs the daily poll sequence now (posts last answer, then a new daily poll). |
+| /relinkpoll <message_id> <correct_option> | Points the bot at a specific poll message to track for the next reveal. Example: /relinkpoll 135123456789012345 3 means option C is correct. |
+| /resolve <poll> | Ends a poll now and posts the answer. Use on-demand or daily. Awards points for daily trivia. |
+| /setcc <@user> | Sets the user named in welcome messages. |
+| /setwelcome <template> | Sets the welcome message text. Placeholders: {user}, {inviter}, {cc}, {points_msg}. |
+| /setcontrolrole <@role> | Sets which role can run admin commands. |
 
-1. Use the **`/update-knowledge <topic>`** command.
-2. A pop-up form appears for that specific topic.
-3. Edit the text and click **Submit**.
-4. Use **`/knowledge-list`** to see all your topics.
-5. The bot automatically combines all topics to answer user questions!
+## Knowledge topics
 
----
+1. Run /knowledge update and enter the topic name.
+2. A form opens for that topic. Edit the text and submit.
+3. Run /knowledge list to see all topics.
+4. The bot uses all saved topics when answering questions.
 
-<div align="center">
-
-**Built with ❤️ for OWGT (OneWorldGreaterTogether)**
-
-</div>
+Built for OWGT (OneWorldGreaterTogether).
