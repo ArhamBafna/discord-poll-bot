@@ -1,0 +1,3 @@
+-- Example migration (does nothing). Proves the runner reports pass/fail.
+-- Real migrations for later tickets go here as 002_*.sql, 003_*.sql, ...
+SELECT 1;

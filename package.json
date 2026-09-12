@@ -4,7 +4,11 @@
   "description": "Discord bot that posts a daily AI poll, answers questions, and tracks leaderboard scores.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "db:backup": "node tools/db/backup.js",
+    "db:restore": "node tools/db/restore.js",
+    "db:validate": "node tools/db/validate.js",
+    "db:migrate-test": "node tools/db/migrate-test.js"
   },
   "dependencies": {
     "@google/genai": "^0.14.0",
