@@ -47,8 +47,7 @@ async function handleKnowledge(interaction) {
 
         try {
             const dbOperations = require('../../database/operations');
-            const pool = require('../../database/connection');
-            await pool.query('DELETE FROM knowledge_base WHERE guild_id = $1 AND key = $2', [guildId, topic]);
+            await dbOperations.deleteStateFromDB(guildId, topic);
             delete state.knowledgeBase[topic];
             await interaction.reply({ content: `Successfully deleted topic: **${topic}**` });
         } catch (error) {

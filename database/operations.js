@@ -1,54 +1,57 @@
-// --- Database Operations ---
+// --- Database Operations (merged kv_store) ---
 const pool = require('./connection');
 const stateManager = require('../state/manager');
+const { CODECS, isSettingsKey, parseStoredValue, serializeStoredValue } = require('./codecs');
+
+function resetGuildState(state) {
+    state.leaderboard = {};
+    state.lastPollData = null;
+    state.activeOnDemandPoll = null;
+    state.lastSuccessfulPoll = null;
+    state.ccUser = null;
+    state.welcomeTemplate = null;
+    state.controlRole = null;
+    state.roleMilestones = {};
+    state.inviteRewardPoints = 1;
+    state.commandStats = {};
+    state.lastEngagementPostGeneral = null;
+    state.lastEngagementPostTeam = null;
+    state.knowledgeBase = {};
+}
 
 async function loadStateForGuild(guildId) {
     const state = stateManager.getServerState(guildId);
     const client = await pool.connect();
     try {
         const leaderboardRes = await client.query('SELECT user_id, score FROM leaderboard WHERE guild_id = $1', [guildId]);
-        state.leaderboard = {};
+
+        resetGuildState(state);
         leaderboardRes.rows.forEach(row => { state.leaderboard[row.user_id] = row.score; });
 
-        const stateRes = await client.query("SELECT key, value FROM state WHERE guild_id = $1", [guildId]);
-        state.lastPollData = null;
-        state.activeOnDemandPoll = null;
-        state.lastSuccessfulPoll = null;
-        state.ccUser = null;
-        state.welcomeTemplate = null;
-        state.controlRole = null;
-        state.roleMilestones = {};
-        state.inviteRewardPoints = 1;
-        state.commandStats = {};
-        state.lastEngagementPostGeneral = null;
-        state.lastEngagementPostTeam = null;
-
-        for (const row of stateRes.rows) {
-            if (row.key === 'lastPollData') state.lastPollData = row.value;
-            if (row.key === 'activeOnDemandPoll') state.activeOnDemandPoll = row.value;
-            if (row.key === 'lastSuccessfulPoll') state.lastSuccessfulPoll = row.value;
-            if (row.key === 'ccUser') state.ccUser = row.value;
-            if (row.key === 'welcomeTemplate') state.welcomeTemplate = row.value;
-            if (row.key === 'controlRole') state.controlRole = row.value;
-            if (row.key === 'roleMilestones') state.roleMilestones = row.value;
-            if (row.key === 'inviteRewardPoints') state.inviteRewardPoints = Number(row.value) || 1;
-            if (row.key === 'lastEngagementPostGeneral') state.lastEngagementPostGeneral = row.value;
-            if (row.key === 'lastEngagementPostTeam') state.lastEngagementPostTeam = row.value;
+        const kvRes = await client.query('SELECT key, value FROM kv_store WHERE guild_id = $1', [guildId]);
+        for (const row of kvRes.rows) {
+            if (isSettingsKey(row.key)) {
+                state[row.key] = parseStoredValue(row.key, row.value);
+            } else {
+                state.knowledgeBase[row.key] = typeof row.value === 'string' ? row.value : String(row.value);
+            }
         }
 
         const statsRes = await client.query('SELECT command_name, uses FROM command_stats WHERE guild_id = $1', [guildId]);
         for (const row of statsRes.rows) {
             state.commandStats[row.command_name] = row.uses;
         }
-
-        const knowledgeRes = await client.query('SELECT key, value FROM knowledge_base WHERE guild_id = $1', [guildId]);
-        state.knowledgeBase = {};
-        knowledgeRes.rows.forEach(row => { state.knowledgeBase[row.key] = row.value; });
     } catch (error) {
         console.error(`[STATE] CRITICAL ERROR loading state for server ${guildId}:`, error);
     } finally {
         client.release();
     }
+}
+
+async function getStateValue(guildId, key) {
+    const res = await pool.query('SELECT value FROM kv_store WHERE guild_id = $1 AND key = $2', [guildId, key]);
+    if (res.rows.length === 0) return isSettingsKey(key) ? CODECS[key].default : null;
+    return parseStoredValue(key, res.rows[0].value);
 }
 
 async function batchUpdateScoresInDB(guildId, userIds) {
@@ -75,7 +78,7 @@ async function admin_removeUserScore(guildId, userId, amount) {
 
 async function admin_saveKnowledgeBase(guildId, key, value) {
     try {
-        await pool.query(`INSERT INTO knowledge_base (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;`, [guildId, key, value]);
+        await pool.query(`INSERT INTO kv_store (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;`, [guildId, key, String(value)]);
         return true;
     } catch (error) {
         console.error(`[DATABASE] Failed to save knowledge base for key '${key}' in guild ${guildId}:`, error);
@@ -85,13 +88,17 @@ async function admin_saveKnowledgeBase(guildId, key, value) {
 
 async function saveStateToDB(guildId, key, value) {
     try {
-        await pool.query(`INSERT INTO state (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;`, [guildId, key, JSON.stringify(value)]);
+        if (value === null || value === undefined) {
+            await pool.query('DELETE FROM kv_store WHERE guild_id = $1 AND key = $2', [guildId, key]);
+            return;
+        }
+        await pool.query(`INSERT INTO kv_store (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;`, [guildId, key, serializeStoredValue(key, value)]);
     } catch (error) { console.error(`[DATABASE] Failed to save state key '${key}' for guild ${guildId}:`, error); }
 }
 
 async function deleteStateFromDB(guildId, key) {
     try {
-        await pool.query('DELETE FROM state WHERE guild_id = $1 AND key = $2', [guildId, key]);
+        await pool.query('DELETE FROM kv_store WHERE guild_id = $1 AND key = $2', [guildId, key]);
     } catch (error) { console.error(`[DATABASE] Failed to delete state key '${key}' for guild ${guildId}:`, error); }
 }
 
@@ -116,6 +123,7 @@ async function saveQuestionToHistory(guildId, question) {
 
 module.exports = {
     loadStateForGuild,
+    getStateValue,
     batchUpdateScoresInDB,
     admin_setOrAddUserScore,
     admin_removeUserScore,
@@ -126,4 +134,3 @@ module.exports = {
     resetCommandUsage,
     saveQuestionToHistory
 };
-

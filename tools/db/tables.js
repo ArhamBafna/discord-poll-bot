@@ -1,8 +1,7 @@
 const KNOWN_TABLES = [
     'leaderboard',
-    'state',
+    'kv_store',
     'question_history',
-    'knowledge_base',
     'invites',
     'command_stats'
 ];

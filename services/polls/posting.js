@@ -81,23 +81,8 @@ async function postWeeklySummary(channelId, discordClient) {
         // Fetch previous leaderboard for comparison
         let previousLeaderboard = null;
         try {
-            const lastSummaryRes = await pool.query(
-                `SELECT value FROM state WHERE guild_id = $1 AND key = 'lastWeeklyLeaderboard'`,
-                [guildId]
-            );
-            if (lastSummaryRes.rows.length > 0) {
-                const rawPrevious = lastSummaryRes.rows[0].value;
-                if (rawPrevious && typeof rawPrevious === 'object') {
-                    previousLeaderboard = rawPrevious;
-                } else if (typeof rawPrevious === 'string') {
-                    try {
-                        const parsed = JSON.parse(rawPrevious);
-                        if (parsed && typeof parsed === 'object') previousLeaderboard = parsed;
-                    } catch {
-                        previousLeaderboard = null;
-                    }
-                }
-            }
+            const stored = await dbOperations.getStateValue(guildId, 'lastWeeklyLeaderboard');
+            if (stored && typeof stored === 'object') previousLeaderboard = stored;
         } catch (err) { console.error(`[LEADERBOARD] Failed to fetch previous leaderboard:`, err); }
 
         let leaderboardString = "";
