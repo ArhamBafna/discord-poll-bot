@@ -21,14 +21,15 @@ function resetGuildState(state) {
 
 async function loadStateForGuild(guildId) {
     const state = stateManager.getServerState(guildId);
-    const client = await pool.connect();
     try {
-        const leaderboardRes = await client.query('SELECT user_id, score FROM leaderboard WHERE guild_id = $1', [guildId]);
-
+        const [leaderboardRes, kvRes, statsRes] = await Promise.all([
+            pool.query('SELECT user_id, score FROM leaderboard WHERE guild_id = $1', [guildId]),
+            pool.query('SELECT key, value FROM kv_store WHERE guild_id = $1', [guildId]),
+            pool.query('SELECT command_name, uses FROM command_stats WHERE guild_id = $1', [guildId])
+        ]);
         resetGuildState(state);
         leaderboardRes.rows.forEach(row => { state.leaderboard[row.user_id] = row.score; });
 
-        const kvRes = await client.query('SELECT key, value FROM kv_store WHERE guild_id = $1', [guildId]);
         for (const row of kvRes.rows) {
             if (isSettingsKey(row.key)) {
                 state[row.key] = parseStoredValue(row.key, row.value);
@@ -37,14 +38,11 @@ async function loadStateForGuild(guildId) {
             }
         }
 
-        const statsRes = await client.query('SELECT command_name, uses FROM command_stats WHERE guild_id = $1', [guildId]);
         for (const row of statsRes.rows) {
             state.commandStats[row.command_name] = row.uses;
         }
     } catch (error) {
         console.error(`[STATE] CRITICAL ERROR loading state for server ${guildId}:`, error);
-    } finally {
-        client.release();
     }
 }
 
@@ -117,7 +115,12 @@ async function resetCommandUsage(guildId) {
 async function saveQuestionToHistory(guildId, question) {
     try {
         await pool.query('INSERT INTO question_history (guild_id, question) VALUES ($1, $2)', [guildId, question]);
-        await pool.query(`DELETE FROM question_history WHERE guild_id = $1 AND id NOT IN (SELECT id FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50);`, [guildId]);
+        await pool.query(
+            `DELETE FROM question_history a USING (
+                SELECT id FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC, id DESC OFFSET 50
+             ) old WHERE a.id = old.id;`,
+            [guildId]
+        );
     } catch (error) { console.error(`[DATABASE] Failed to save question history for guild ${guildId}:`, error); }
 }
 
