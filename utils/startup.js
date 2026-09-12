@@ -5,6 +5,7 @@ const { DISCORD_BOT_TOKEN, applyNetworkDefaults, validateConfig } = require('../
 function loginWithTimeout(discordClient, token, timeoutMs = 90000) {
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => { reject(new Error('Login timed out')); }, timeoutMs);
+        timeout.unref();
         discordClient.login(token).then(r => { clearTimeout(timeout); resolve(r); }).catch(e => { clearTimeout(timeout); reject(e); });
     });
 }

@@ -18,8 +18,9 @@ function validateConfig() {
 }
 
 function getSanitizedDbUrl() {
+    const url = process.env.DATABASE_URL;
     try {
-        const dbUrl = new URL(DATABASE_URL);
+        const dbUrl = new URL(url);
         if (dbUrl.searchParams.has('transaction_timeout')) {
             dbUrl.searchParams.delete('transaction_timeout');
             return dbUrl.toString();
@@ -27,7 +28,7 @@ function getSanitizedDbUrl() {
     } catch (e) {
         throw new Error('DATABASE_URL is not a valid URL.');
     }
-    return DATABASE_URL;
+    return url;
 }
 
 module.exports = {
