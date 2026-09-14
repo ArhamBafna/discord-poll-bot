@@ -1,5 +1,5 @@
 // --- /resolve Command Handler ---
-const { EmbedBuilder } = require('discord.js');
+const { createSuccessEmbed } = require('../../lib/embeds');
 const { resolveLastPoll } = require('../../services/polls/resolution');
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
@@ -17,10 +17,7 @@ async function resolveOnDemand(interaction, state, guildId) {
     const pollData = state.activeOnDemandPoll;
     const correctOptionLetter = String.fromCharCode(65 + pollData.correctAnswerIndex);
 
-    const answerEmbed = new EmbedBuilder()
-        .setColor('#2ECC71')
-        .setTitle('Answer & Explanation')
-        .setDescription(`**Q: ${pollData.question}**`)
+    const answerEmbed = createSuccessEmbed('Answer & Explanation', `**Q: ${pollData.question}**`)
         .addFields(
             { name: 'Correct Answer', value: `**${correctOptionLetter}: ${pollData.options[pollData.correctAnswerIndex]}**` },
             { name: 'Explanation', value: pollData.explanation }

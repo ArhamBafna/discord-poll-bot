@@ -1,5 +1,5 @@
 // --- Main Scheduled Post Function ---
-const { EmbedBuilder } = require('discord.js');
+const { createLeaderboardEmbed } = require('../../lib/embeds');
 const pool = require('../../database/connection');
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
@@ -45,7 +45,7 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false) {
 
         if (newPollData) {
             newPollData.type = 'trivia'; // All polls are now trivia
-            let pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll! 😅" : "@everyone **Today's AI Poll!** 🧠";
+            let pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll!" : "@everyone **Today's AI Poll!** 🧠";
             if (newPollData.kind === 'fallback') pollIntroMessage += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
 
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
@@ -142,7 +142,7 @@ INSTRUCTIONS:
             : "AI summary unavailable this week due to a temporary service issue. Great effort from everyone, and we will be back with full AI analysis next report.";
         const description = '**AI Comment**\n' + aiComment;
 
-        const summaryEmbed = new EmbedBuilder().setColor('#FFD700').setTitle('Weekly Poll Report').setDescription(description).addFields({ name: 'Top 10 This Week', value: leaderboardString || 'No participants this week.' }).setFooter({ text: 'A new week of polls starts tomorrow!' });
+        const summaryEmbed = createLeaderboardEmbed('Weekly Poll Report', description).addFields({ name: 'Top 10 This Week', value: leaderboardString || 'No participants this week.' }).setFooter({ text: 'A new week of polls starts tomorrow!' });
 
         // Add Milestone info to embed if available
         const milestonesEmbed = state.roleMilestones;

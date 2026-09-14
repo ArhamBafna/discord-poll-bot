@@ -1,5 +1,5 @@
 // --- Poll Resolution Function ---
-const { EmbedBuilder } = require('discord.js');
+const { createAnswerEmbed } = require('../../lib/embeds');
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
 const { checkAndAssignMilestoneRole } = require('../roles/milestones');
@@ -53,10 +53,7 @@ async function resolveLastPoll(channel, discordClient) {
                 description = description.substring(0, 4093) + '...';
             }
 
-            const answerEmbed = new EmbedBuilder()
-                .setColor('#5865F2')
-                .setTitle(`Yesterday's Poll Answer 🧐`)
-                .setDescription(description)
+            const answerEmbed = createAnswerEmbed(`Yesterday's Poll Answer`, description)
                 .addFields({ name: 'Leaderboard Update', value: `**${winnerUsernames.length}** member(s) answered correctly and have been awarded a point!` });
                 
             await channel.send({ embeds: [answerEmbed] });

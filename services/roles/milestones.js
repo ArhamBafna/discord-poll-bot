@@ -44,7 +44,7 @@ async function checkAndAssignMilestoneRole(member, score) {
             const targetRole = await member.guild.roles.fetch(targetRoleId);
             if (targetRole) {
                 await member.roles.add(targetRole, `Reached AI milestone: ${highestMilestonePoints} points`);
-                return `🎉 **Congratulations <@${member.id}>!** You've reached the **${highestMilestonePoints} points** milestone and earned the **${targetRole.name}** role! 🚀`;
+                return `🎉 **Congratulations <@${member.id}>!** You've reached the **${highestMilestonePoints} points** milestone and earned the **${targetRole.name}** role!`;
             }
         }
     } catch (error) {

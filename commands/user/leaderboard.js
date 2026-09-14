@@ -1,5 +1,5 @@
 // --- /leaderboard Command Handler ---
-const { EmbedBuilder } = require('discord.js');
+const { createLeaderboardEmbed } = require('../../lib/embeds');
 const stateManager = require('../../state/manager');
 
 async function handleLeaderboard(interaction, discordClient) {
@@ -15,7 +15,7 @@ async function handleLeaderboard(interaction, discordClient) {
             description += `**${i + 1}. ${user.username}** - ${sortedUsers[i][1]} points\n`;
         } catch { description += `**${i + 1}.** *Unknown User* - ${sortedUsers[i][1]} points\n`; }
     }
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor('#F1C40F').setTitle(`🏆 Leaderboard for ${interaction.guild.name} 🏆`).setDescription(description)] });
+    await interaction.editReply({ embeds: [createLeaderboardEmbed(`🏆 Leaderboard for ${interaction.guild.name}`, description)] });
 }
 
 module.exports = { handleLeaderboard };
