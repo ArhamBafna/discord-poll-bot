@@ -6,6 +6,9 @@ const ADMIN_COMMANDS = ['asknow', 'postdaily', 'points', 'knowledge', 'relinkpol
 const USER_CHANNEL_NAMES = ['general', 'chat', 'community', 'lounge'];
 const ADMIN_CHANNEL_NAMES = ['team', 'staff', 'admin', 'admins', 'mod', 'mods', 'moderator', 'moderators'];
 
+const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+const NINE_DAYS_MS = 9 * 24 * 60 * 60 * 1000;
+
 const COMMAND_DESCRIPTIONS = {
     leaderboard: 'Check who is leading the server in AI trivia!',
     rank: 'See your personal rank and total points.',
@@ -40,7 +43,8 @@ function pickChannelByNames(guild, channels, names) {
     const ordered = getOrderedWritableChannels(guild, channels);
 
     for (const targetName of names) {
-        const found = ordered.find((channel) => channel.name?.toLowerCase().includes(targetName));
+        // Use exact channel matching instead of loose substrings
+        const found = ordered.find((channel) => channel.name?.toLowerCase() === targetName);
         if (found) return found;
     }
 
@@ -65,60 +69,61 @@ async function findEngagementChannels(guild) {
 async function checkAndPostEngagement(discordClient) {
     const guilds = Array.from(discordClient.guilds.cache.values());
 
+    // Process without blocking the whole bot
     for (const guild of guilds) {
-        try {
-            if (!stateManager.serverStateCache[guild.id]) {
-                await dbOperations.loadStateForGuild(guild.id);
+        setImmediate(async () => {
+            try {
+                if (!stateManager.serverStateCache[guild.id]) {
+                    await dbOperations.loadStateForGuild(guild.id);
+                }
+
+                const state = stateManager.getServerState(guild.id);
+                const stats = state.commandStats || {};
+                const now = new Date();
+                const { generalChannel, teamChannel } = await findEngagementChannels(guild);
+
+                const lastPostGen = state.lastEngagementPostGeneral ? new Date(state.lastEngagementPostGeneral) : null;
+                if ((!lastPostGen || (now - lastPostGen) >= FOURTEEN_DAYS_MS) && generalChannel) {
+                    const leastUsed = USER_COMMANDS
+                        .map((cmd) => ({ name: cmd, uses: stats[cmd] || 0 }))
+                        .sort((a, b) => a.uses - b.uses)
+                        .slice(0, 2);
+
+                    const cmd1 = leastUsed[0].name;
+                    const cmd2 = leastUsed[1].name;
+
+                    const message = `Wassup guys! Just a quick reminder about my features:\n\n`
+                        + `Did you know you can use **/${cmd1}** to ${COMMAND_DESCRIPTIONS[cmd1] || 'explore features'}?\n`
+                        + `Also, check out **/${cmd2}**. It is a great way to ${COMMAND_DESCRIPTIONS[cmd2] || 'stay engaged'}.\n\n`
+                        + 'Give them a try!';
+
+                    await generalChannel.send(message);
+                    state.lastEngagementPostGeneral = now.toISOString();
+                    await dbOperations.saveStateToDB(guild.id, 'lastEngagementPostGeneral', state.lastEngagementPostGeneral);
+                }
+
+                const lastPostTeam = state.lastEngagementPostTeam ? new Date(state.lastEngagementPostTeam) : null;
+                if ((!lastPostTeam || (now - lastPostTeam) >= NINE_DAYS_MS) && teamChannel) {
+                    const leastUsedAdmin = ADMIN_COMMANDS
+                        .map((cmd) => ({ name: cmd, uses: stats[cmd] || 0 }))
+                        .sort((a, b) => a.uses - b.uses)
+                        .slice(0, 3);
+
+                    const cmds = leastUsedAdmin.map((usage) => `**/${usage.name}**`).join(', ');
+
+                    const message = 'Hi Team! Quick admin reminder.\n\n'
+                        + `I noticed we have not used ${cmds} much lately. These features can help the server significantly.\n\n`
+                        + 'If you have a moment, test them or check **/settings** to see the current setup.';
+
+                    await teamChannel.send(message);
+                    state.lastEngagementPostTeam = now.toISOString();
+                    await dbOperations.saveStateToDB(guild.id, 'lastEngagementPostTeam', state.lastEngagementPostTeam);
+                }
+            } catch (error) {
+                console.error(`[ENGAGEMENT][${guild.id}] Failed:`, error);
             }
-
-            const state = stateManager.getServerState(guild.id);
-            const stats = state.commandStats || {};
-            const now = new Date();
-            const { generalChannel, teamChannel } = await findEngagementChannels(guild);
-
-            const lastPostGen = state.lastEngagementPostGeneral ? new Date(state.lastEngagementPostGeneral) : null;
-            if ((!lastPostGen || (now - lastPostGen) >= 14 * 24 * 60 * 60 * 1000) && generalChannel) {
-                const leastUsed = USER_COMMANDS
-                    .map((cmd) => ({ name: cmd, uses: stats[cmd] || 0 }))
-                    .sort((a, b) => a.uses - b.uses)
-                    .slice(0, 2);
-
-                const cmd1 = leastUsed[0].name;
-                const cmd2 = leastUsed[1].name;
-
-                const message = `Wassup guys! Just a quick reminder about my features:\n\n`
-                    + `Did you know you can use **/${cmd1}** to ${COMMAND_DESCRIPTIONS[cmd1] || 'explore features'}?\n`
-                    + `Also, check out **/${cmd2}**. It is a great way to ${COMMAND_DESCRIPTIONS[cmd2] || 'stay engaged'}.\n\n`
-                    + 'Give them a try!';
-
-                await generalChannel.send(message);
-                state.lastEngagementPostGeneral = now.toISOString();
-                await dbOperations.saveStateToDB(guild.id, 'lastEngagementPostGeneral', state.lastEngagementPostGeneral);
-            }
-
-            const lastPostTeam = state.lastEngagementPostTeam ? new Date(state.lastEngagementPostTeam) : null;
-            if ((!lastPostTeam || (now - lastPostTeam) >= 9 * 24 * 60 * 60 * 1000) && teamChannel) {
-                const leastUsedAdmin = ADMIN_COMMANDS
-                    .map((cmd) => ({ name: cmd, uses: stats[cmd] || 0 }))
-                    .sort((a, b) => a.uses - b.uses)
-                    .slice(0, 3);
-
-                const cmds = leastUsedAdmin.map((usage) => `**/${usage.name}**`).join(', ');
-
-                const message = 'Hi Team! Quick admin reminder.\n\n'
-                    + `I noticed we have not used ${cmds} much lately. These features can help the server significantly.\n\n`
-                    + 'If you have a moment, test them or check **/settings** to see the current setup.';
-
-                await teamChannel.send(message);
-                state.lastEngagementPostTeam = now.toISOString();
-                await dbOperations.saveStateToDB(guild.id, 'lastEngagementPostTeam', state.lastEngagementPostTeam);
-            }
-        } catch (error) {
-            console.error(`[ENGAGEMENT][${guild.id}] Failed:`, error);
-        }
+        });
     }
 }
 
 module.exports = { checkAndPostEngagement };
-
-
