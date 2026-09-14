@@ -65,14 +65,16 @@ async function syncAllMilestoneRoles(guild, state) {
     const leaderboard = state.leaderboard;
     if (Object.keys(leaderboard).length === 0) return;
 
-    // Fetch members in chunks to avoid memory spikes
-    const members = await guild.members.fetch();
+    const entries = Object.entries(leaderboard);
+    const userIds = entries.map(([userId]) => userId);
+    
+    // Fetch only leaderboard members, not every guild member
+    const members = await guild.members.fetch({ user: userIds }).catch(() => new Map());
 
     let syncCount = 0;
-    // Process in smaller batches to avoid hitting Discord rate limits too hard
-    const entries = Object.entries(leaderboard);
-    for (let i = 0; i < entries.length; i += 50) {
-        const batch = entries.slice(i, i + 50);
+    // Process at low concurrency to avoid rate-limit bursts
+    for (let i = 0; i < entries.length; i += 10) {
+        const batch = entries.slice(i, i + 10);
         await Promise.all(batch.map(async ([userId, score]) => {
             const member = members.get(userId);
             if (member) {
@@ -80,8 +82,8 @@ async function syncAllMilestoneRoles(guild, state) {
                 syncCount++;
             }
         }));
-        // Small pause between batches if the leaderboard is huge
-        if (entries.length > 100) await new Promise(r => setTimeout(r, 500));
+        // Small pause between batches
+        if (entries.length > 10) await new Promise(r => setTimeout(r, 500));
     }
     console.log(`[ROLES][${guild.id}] Full sync complete. Processed ${syncCount} users.`);
 }
