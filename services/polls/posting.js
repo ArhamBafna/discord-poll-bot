@@ -8,11 +8,51 @@ const { FALLBACK_POLLS } = require('./fallbacks');
 const serviceHelpers = require('../../lib/serviceHelpers');
 const { generateTextWithRetries } = require('../ai/generation');
 const pollResolution = require('./resolution');
+const { getNYDateString } = require('../../utils/dateUtils');
+const { TARGET_CHANNEL_IDS } = require('../../config');
 
 // State management for posting lock
 const postingLock = new Set(); // Prevents concurrent poll posting
 
-async function performDailyPost(channelId, discordClient, isCatchUp = false) {
+async function getOrGenerateDailyPoll(dateStr) {
+    const globalKey = `daily_poll_${dateStr}`;
+    const existingPoll = await dbOperations.getGlobalStateValue(globalKey);
+    if (existingPoll) {
+        console.log(`[POLL][COORDINATOR] Found existing global poll for ${dateStr}. Skipping generation.`);
+        return existingPoll;
+    }
+
+    console.log(`[POLL][COORDINATOR] No global poll found for ${dateStr}. Generating new one.`);
+    // Fetch history from global
+    const historyRes = await pool.query("SELECT question FROM question_history WHERE guild_id = 'global' ORDER BY created_at DESC LIMIT 50");
+    const questionHistory = historyRes.rows.map(row => row.question);
+
+    let pollResult = await generateTriviaPoll('', questionHistory);
+    let newPollData;
+    let usedFallback = false;
+
+    if (pollResult.status !== 'success') {
+        console.warn(`[POLL][COORDINATOR] Gemini and OpenRouter failed. Status: ${pollResult.status}. Deploying preset fallback.`);
+        serviceHelpers.metrics.fallback_served++;
+        usedFallback = true;
+        newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], kind: 'fallback' };
+    } else {
+        newPollData = pollResult.data;
+        newPollData.kind = 'AI';
+    }
+
+    newPollData.type = 'trivia';
+    
+    // Save to global kv_store and history
+    await dbOperations.saveGlobalStateValue(globalKey, newPollData);
+    if (!usedFallback) {
+        await dbOperations.saveQuestionToHistory('global', newPollData.question);
+    }
+
+    return newPollData;
+}
+
+async function performDailyPost(channelId, discordClient, isCatchUp = false, sharedPollData = null) {
     if (postingLock.has(channelId)) { console.warn(`[POLL] Aborted post for channel ${channelId}, another is in progress.`); return; }
     postingLock.add(channelId);
     try {
@@ -23,28 +63,30 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false) {
         await dbOperations.loadStateForGuild(guildId);
         const state = stateManager.getServerState(guildId);
 
-        await pollResolution.resolveLastPoll(channel, discordClient);
+        const now = new Date();
+        const todayDateStr = getNYDateString(now);
 
-        // Fetch history to prevent any repetition.
-        const historyRes = await pool.query('SELECT question FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT 50', [guildId]);
-        const questionHistory = historyRes.rows.map(row => row.question);
-
-        let pollResult = await generateTriviaPoll('', questionHistory);
-        let newPollData;
-        let usedFallback = false;
-
-        if (pollResult.status !== 'success') {
-            console.warn(`[POLL][FALLBACK] Gemini and OpenRouter both failed. Status: ${pollResult.status}. Deploying a preset fallback poll.`);
-            serviceHelpers.metrics.fallback_served++;
-            usedFallback = true;
-            newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], kind: 'fallback' };
-        } else {
-            newPollData = pollResult.data;
-            newPollData.kind = isCatchUp ? 'catch-up' : 'AI';
+        // Check if we already posted today in this channel
+        if (state.lastPollData && state.lastPollData.createdAt && !isNaN(new Date(state.lastPollData.createdAt))) {
+            const lastPollDateStr = getNYDateString(new Date(state.lastPollData.createdAt));
+            if (lastPollDateStr === todayDateStr) {
+                console.log(`[POLL][${guildId}][#${channel.name}] Poll for today (${todayDateStr}) already posted. Skipping.`);
+                return;
+            }
         }
 
+        await pollResolution.resolveLastPoll(channel, discordClient);
+
+        let newPollData = sharedPollData;
+        if (!newPollData) {
+             newPollData = await getOrGenerateDailyPoll(todayDateStr);
+        }
+        
+        // Deep clone to not mess up global shared references across channels
+        newPollData = JSON.parse(JSON.stringify(newPollData));
+        newPollData.kind = isCatchUp ? 'catch-up' : newPollData.kind;
+
         if (newPollData) {
-            newPollData.type = 'trivia'; // All polls are now trivia
             let pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll!" : "@everyone **Today's AI Poll!** 🧠";
             if (newPollData.kind === 'fallback') pollIntroMessage += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
 
@@ -55,18 +97,29 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false) {
             state.lastPollData = newPollData;
             await dbOperations.saveStateToDB(guildId, 'lastPollData', newPollData);
 
-            if (!usedFallback) { // Only save real polls as "last successful" and to history
+            if (newPollData.kind !== 'fallback') {
                 await dbOperations.saveStateToDB(guildId, 'lastSuccessfulPoll', newPollData);
-                await dbOperations.saveQuestionToHistory(guildId, newPollData.question);
             }
 
             console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
         } else {
-            console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not generate a poll from Gemini, OpenRouter, or a fallback preset.`);
+            console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not retrieve a poll.`);
         }
     } catch (error) {
         console.error(`[POLL][Channel: ${channelId}] Critical error during daily post:`, error);
     } finally { postingLock.delete(channelId); }
+}
+
+async function runCentralizedDailyPost(discordClient) {
+    console.log('[POLL][COORDINATOR] Starting centralized daily post run.');
+    const now = new Date();
+    const todayDateStr = getNYDateString(now);
+    const sharedPollData = await getOrGenerateDailyPoll(todayDateStr);
+
+    for (const channelId of TARGET_CHANNEL_IDS) {
+        await performDailyPost(channelId, discordClient, false, sharedPollData);
+    }
+    console.log('[POLL][COORDINATOR] Centralized daily post run complete.');
 }
 
 async function postWeeklySummary(channelId, discordClient) {
@@ -163,7 +216,9 @@ INSTRUCTIONS:
 }
 module.exports = {
     performDailyPost,
-    postWeeklySummary
+    postWeeklySummary,
+    runCentralizedDailyPost,
+    getOrGenerateDailyPoll
 };
 
 

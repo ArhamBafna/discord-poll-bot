@@ -154,6 +154,34 @@ async function saveQuestionToHistory(guildId, question) {
     } catch (error) { console.error(`[DATABASE] Failed to save question history for guild ${guildId}:`, error); }
 }
 
+async function getGlobalStateValue(key) {
+    try {
+        const res = await pool.query('SELECT value FROM kv_store WHERE guild_id = $1 AND key = $2', ['global', key]);
+        if (res.rows.length === 0) return null;
+        try {
+            return JSON.parse(res.rows[0].value);
+        } catch {
+            return res.rows[0].value;
+        }
+    } catch (error) {
+        console.error(`[DATABASE] Failed to get global state key '${key}':`, error);
+        return null;
+    }
+}
+
+async function saveGlobalStateValue(key, value) {
+    try {
+        if (value === null || value === undefined) {
+            await pool.query('DELETE FROM kv_store WHERE guild_id = $1 AND key = $2', ['global', key]);
+            return;
+        }
+        const stringified = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        await pool.query(`INSERT INTO kv_store (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;`, ['global', key, stringified]);
+    } catch (error) {
+        console.error(`[DATABASE] Failed to save global state key '${key}':`, error);
+    }
+}
+
 module.exports = {
     updateAndPersist,
     updateAndPersistKnowledge,
@@ -167,5 +195,7 @@ module.exports = {
     deleteStateFromDB,
     incrementCommandUsage,
     resetCommandUsage,
-    saveQuestionToHistory
+    saveQuestionToHistory,
+    getGlobalStateValue,
+    saveGlobalStateValue
 };

@@ -15,10 +15,14 @@ async function checkForMissedPolls(discordClient) {
         return;
     }
 
-    const checkPromises = TARGET_CHANNEL_IDS.map(async (channelId) => {
+    const todayDateStr = getNYDateString(now);
+    const { getOrGenerateDailyPoll } = require('./posting');
+    const sharedPollData = await getOrGenerateDailyPoll(todayDateStr);
+
+    for (const channelId of TARGET_CHANNEL_IDS) {
         try {
             const channel = await discordClient.channels.fetch(channelId);
-            if (!channel || !channel.guild) return;
+            if (!channel || !channel.guild) continue;
             const guildId = channel.guild.id;
             await dbOperations.loadStateForGuild(guildId);
             const state = stateManager.getServerState(guildId);
@@ -26,22 +30,20 @@ async function checkForMissedPolls(discordClient) {
             // Check if we have data for TODAY (NY time)
             if (!state.lastPollData || !state.lastPollData.createdAt || isNaN(new Date(state.lastPollData.createdAt))) {
                 console.log(`[STARTUP] No previous valid poll found. Catching up for ${channel.name}.`);
-                await performDailyPost(channelId, discordClient, true);
-                return;
+                await performDailyPost(channelId, discordClient, true, sharedPollData);
+                continue;
             }
             
             const lastPollDateStr = getNYDateString(new Date(state.lastPollData.createdAt));
-            const todayDateStr = getNYDateString(now);
 
             if (lastPollDateStr !== todayDateStr) {
                 console.log(`[STARTUP] Last poll was from ${lastPollDateStr}, but today is ${todayDateStr}. Catching up for ${channel.name}.`);
-                await performDailyPost(channelId, discordClient, true);
+                await performDailyPost(channelId, discordClient, true, sharedPollData);
             } else {
                 console.log(`[STARTUP] Poll for today (${todayDateStr}) already exists in ${channel.name}. No action needed.`);
             }
         } catch (error) { console.error(`[STARTUP] CRITICAL ERROR during catch-up check for channel ${channelId}:`, error); }
-    });
-    await Promise.all(checkPromises);
+    }
     console.log('[STARTUP] Missed poll check complete.');
 }
 

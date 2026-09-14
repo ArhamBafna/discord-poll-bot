@@ -6,7 +6,7 @@ const { initializeDatabase } = require('../database/initialization');
 const { commands, rest } = require('../commands/definitions');
 const { cacheAndSyncInvites } = require('../services/invites/tracking');
 const { TARGET_CHANNEL_IDS } = require('../config');
-const { performDailyPost, postWeeklySummary } = require('../services/polls/posting');
+const { runCentralizedDailyPost, postWeeklySummary } = require('../services/polls/posting');
 const { checkForMissedPolls } = require('../services/polls/scheduling');
 const { checkAndPostEngagement } = require('../services/engagement');
 const { syncAllMilestoneRoles } = require('../services/roles/milestones');
@@ -48,8 +48,8 @@ async function handleReady(discordClient) {
         log(`Failed during guild initialization: ${error.message}`, 'STARTUP');
     }
 
+    cron.schedule('0 6 * * *', () => runCentralizedDailyPost(discordClient), { scheduled: true, timezone: 'America/New_York' });
     TARGET_CHANNEL_IDS.forEach(channelId => {
-        cron.schedule('0 6 * * *', () => performDailyPost(channelId, discordClient), { scheduled: true, timezone: 'America/New_York' });
         cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId, discordClient), { scheduled: true, timezone: 'America/New_York' });
     });
 
