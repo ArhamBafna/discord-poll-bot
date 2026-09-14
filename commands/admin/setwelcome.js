@@ -1,5 +1,6 @@
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
+const { renderWelcomeTemplate } = require('../../lib/serviceHelpers');
 
 async function handleSetWelcome(interaction) {
     const guildId = interaction.guild.id;
@@ -9,7 +10,8 @@ async function handleSetWelcome(interaction) {
     try {
         const success = await dbOperations.updateAndPersist(guildId, 'welcomeTemplate', template);
         if (!success) throw new Error('DB Error');
-        await interaction.reply(`Success! The welcome message template has been updated.\n\n**Preview:**\n${template.replace('{user}', interaction.user).replace('{inviter}', 'someone').replace('{cc}', 'someone').replace('{points_msg}', 'i added a point to someone\'s score!')}`);
+        const preview = renderWelcomeTemplate(template, interaction.user, 'someone', 'someone', 'i added a point to someone\\'s score!');
+        await interaction.reply(`Success! The welcome message template has been updated.\n\n**Preview:**\n${preview}`);
     } catch (error) {
         console.error('[SETWELCOME] Error setting welcome template:', error);
         await interaction.reply({ content: 'A database error occurred.', ephemeral: true });

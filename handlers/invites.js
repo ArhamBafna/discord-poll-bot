@@ -4,6 +4,7 @@ const { inviteCache, cacheAndSyncInvites } = require('../services/invites/tracki
 const { ALLOWED_USERNAME } = require('../config');
 const dbOperations = require('../database/operations');
 const stateManager = require('../state/manager');
+const { renderWelcomeTemplate } = require('../lib/serviceHelpers');
 
 async function handleGuildCreate(guild) {
     await cacheAndSyncInvites(guild);
@@ -88,11 +89,13 @@ async function handleGuildMemberAdd(member, discordClient) {
 
         let finalMessage = '';
         if (welcomeTemplate) {
-            finalMessage = welcomeTemplate
-                .replace('{user}', member)
-                .replace('{inviter}', inviter || 'someone unknown')
-                .replace('{cc}', ccUser || 'the team')
-                .replace('{points_msg}', pointsMessage);
+            finalMessage = renderWelcomeTemplate(
+                welcomeTemplate,
+                member,
+                inviter || 'someone unknown',
+                ccUser || 'the team',
+                pointsMessage
+            );
         } else {
             // Default template
             finalMessage = `welcome to the server, ${member}!`;
