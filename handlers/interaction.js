@@ -51,10 +51,9 @@ async function handleInteractionCreate(interaction, discordClient) {
 
                 const topic = interaction.customId.split(':')[1];
                 const knowledgeText = interaction.fields.getTextInputValue('knowledgeInput');
-                const success = await dbOperations.admin_saveKnowledgeBase(guildId, topic, knowledgeText);
+                const success = await dbOperations.updateAndPersistKnowledge(guildId, topic, knowledgeText);
 
-                if (success) {
-                    state.knowledgeBase[topic] = knowledgeText; // Update cache
+                if (success) { // Update cache
                     await interaction.reply({ content: \`Knowledge for topic **\${topic}** has been updated successfully!\` });
                 } else {
                     await interaction.reply({ content: 'A database error occurred while trying to update the knowledge base.' });

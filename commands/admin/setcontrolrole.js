@@ -7,8 +7,8 @@ async function handleSetControlRole(interaction) {
     const state = stateManager.getServerState(guildId);
 
     try {
-        await dbOperations.saveStateToDB(guildId, 'controlRole', targetRole.id);
-        state.controlRole = targetRole.id;
+        const success = await dbOperations.updateAndPersist(guildId, 'controlRole', targetRole.id);
+        if (!success) throw new Error('DB Error');
         await interaction.reply(`Success! Members with the **${targetRole.name}** role can now run administrative commands.`);
     } catch (error) {
         console.error('[SETCONTROLROLE] Error setting control role:', error);

@@ -7,8 +7,8 @@ async function handleSetInvitePoints(interaction) {
     const state = stateManager.getServerState(guildId);
 
     try {
-        await dbOperations.saveStateToDB(guildId, 'inviteRewardPoints', points);
-        state.inviteRewardPoints = points;
+        const success = await dbOperations.updateAndPersist(guildId, 'inviteRewardPoints', points);
+        if (!success) throw new Error('DB Error');
 
         const unitLabel = points === 1 ? 'point' : 'points';
         await interaction.reply(`Success! Inviters will now receive **${points} ${unitLabel}** for each successful invite.`);

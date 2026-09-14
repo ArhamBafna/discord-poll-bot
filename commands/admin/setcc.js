@@ -7,8 +7,8 @@ async function handleSetCC(interaction) {
     const state = stateManager.getServerState(guildId);
 
     try {
-        await dbOperations.saveStateToDB(guildId, 'ccUser', targetUser.id);
-        state.ccUser = targetUser.id;
+        const success = await dbOperations.updateAndPersist(guildId, 'ccUser', targetUser.id);
+        if (!success) throw new Error('DB Error');
         await interaction.reply(`Success! **${targetUser.username}** will now be CC'd in welcome messages.`);
     } catch (error) {
         console.error('[SETCC] Error setting CC user:', error);

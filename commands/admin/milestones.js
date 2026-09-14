@@ -14,8 +14,8 @@ async function handleMilestones(interaction) {
             const milestones = { ...state.roleMilestones };
             milestones[points] = role.id;
             
-            await dbOperations.saveStateToDB(guildId, 'roleMilestones', milestones);
-            state.roleMilestones = milestones;
+            const success = await dbOperations.updateAndPersist(guildId, 'roleMilestones', milestones);
+        if (!success) throw new Error('DB Error');
             
             // Sync roles immediately for all users who might already have these points
             await syncAllMilestoneRoles(interaction.guild, state);
@@ -31,8 +31,8 @@ async function handleMilestones(interaction) {
             }
             
             delete milestones[points];
-            await dbOperations.saveStateToDB(guildId, 'roleMilestones', milestones);
-            state.roleMilestones = milestones;
+            const success = await dbOperations.updateAndPersist(guildId, 'roleMilestones', milestones);
+        if (!success) throw new Error('DB Error');
             
             await interaction.reply(`Success! The milestone for **${points}** points has been removed.`);
         }

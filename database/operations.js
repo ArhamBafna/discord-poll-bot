@@ -84,6 +84,36 @@ async function admin_saveKnowledgeBase(guildId, key, value) {
     }
 }
 
+
+async function updateAndPersist(guildId, key, value) {
+    try {
+        if (value === null || value === undefined) {
+            await pool.query('DELETE FROM kv_store WHERE guild_id = $1 AND key = $2', [guildId, key]);
+        } else {
+            await pool.query('INSERT INTO kv_store (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;', [guildId, key, serializeStoredValue(key, value)]);
+        }
+        const state = stateManager.getServerState(guildId);
+        state[key] = value;
+        return true;
+    } catch (error) {
+        console.error('[DATABASE] Failed to update and persist key', key, 'for guild', guildId, ':', error);
+        return false;
+    }
+}
+
+async function updateAndPersistKnowledge(guildId, topic, knowledgeText) {
+    try {
+        await pool.query('INSERT INTO kv_store (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;', [guildId, topic, String(knowledgeText)]);
+        const state = stateManager.getServerState(guildId);
+        state.knowledgeBase[topic] = knowledgeText;
+        return true;
+    } catch (error) {
+        console.error('[DATABASE] Failed to update and persist knowledge for topic', topic, 'in guild', guildId, ':', error);
+        return false;
+    }
+}
+
+
 async function saveStateToDB(guildId, key, value) {
     try {
         if (value === null || value === undefined) {
@@ -125,6 +155,8 @@ async function saveQuestionToHistory(guildId, question) {
 }
 
 module.exports = {
+    updateAndPersist,
+    updateAndPersistKnowledge,
     loadStateForGuild,
     getStateValue,
     batchUpdateScoresInDB,
