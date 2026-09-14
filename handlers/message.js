@@ -5,15 +5,18 @@ const { buildConversationHistory, generateChatResponseWithRetries } = require('.
 const { ALLOWED_USERNAME } = require('../config');
 const serviceHelpers = require('../lib/serviceHelpers');
 
+const ExpiringMap = require('../lib/ExpiringMap');
+
 // State management for spam protection
-const userCooldowns = new Map(); // { userId: timestamp }
 const USER_COOLDOWN_MS = 4000; // 4 seconds between messages per user
-const channelOverloadState = {}; // { channelId: timestamp } of GLOBAL overload (CANT reaction)
+const userCooldowns = new ExpiringMap(USER_COOLDOWN_MS); 
 const OVERLOAD_COOLDOWN_MS = 60000; // 1 minute of global silence if triggered
+const channelOverloadState = new ExpiringMap(OVERLOAD_COOLDOWN_MS); 
 
 // --- PROACTIVE ENGAGEMENT SETTINGS ---
-const passiveJumps = new Map(); // { channelId: timestamp } of last proactive jump
 const JUMP_COOLDOWN_MS = 1200000; // 20 minutes cooldown between proactive jumps per channel
+const passiveJumps = new ExpiringMap(JUMP_COOLDOWN_MS); 
+
 const JUMP_PROBABILITY = 0.62; // 62% chance to jump in if keywords match
 const BROAD_KEYWORDS = [
     'ai', 'bot', 'question', 'answer'
@@ -29,8 +32,8 @@ const QUESTION_INTENT_SIGNALS = ['?', 'how', 'why', 'can someone', 'help'];
 const MIN_PROACTIVE_RELEVANCE_SCORE = 3;
 
 // --- NON-PING FOLLOW-UP CONTINUITY ---
-const activeUserSessions = new Map(); // { channelId-userId: timestamp }
 const SESSION_FOLLOWUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const activeUserSessions = new ExpiringMap(SESSION_FOLLOWUP_WINDOW_MS); 
 const NO_REPLY_SENTINEL = '[[OWGT_NO_REPLY]]';
 
 function getSessionKey(channelId, userId) {
@@ -38,18 +41,11 @@ function getSessionKey(channelId, userId) {
 }
 
 function markActiveSession(channelId, userId) {
-    activeUserSessions.set(getSessionKey(channelId, userId), Date.now());
+    activeUserSessions.set(getSessionKey(channelId, userId));
 }
 
 function hasActiveSession(channelId, userId) {
-    const key = getSessionKey(channelId, userId);
-    const last = activeUserSessions.get(key);
-    if (!last) return false;
-    if (Date.now() - last > SESSION_FOLLOWUP_WINDOW_MS) {
-        activeUserSessions.delete(key);
-        return false;
-    }
-    return true;
+    return activeUserSessions.has(getSessionKey(channelId, userId));
 }
 
 function isNoReplySignal(text) {
@@ -127,13 +123,12 @@ async function handleMessageCreate(message, discordClient) {
             const passesRelevanceThreshold = proactiveRelevanceScore >= MIN_PROACTIVE_RELEVANCE_SCORE;
 
             if (passesRelevanceThreshold) {
-                const lastJump = passiveJumps.get(message.channel.id);
-                const onCooldown = lastJump && (Date.now() - lastJump < JUMP_COOLDOWN_MS);
+                const onCooldown = passiveJumps.has(message.channel.id);
 
                 if (!onCooldown && Math.random() < JUMP_PROBABILITY) {
                     shouldProcess = true;
                     isProactiveJump = true;
-                    passiveJumps.set(message.channel.id, Date.now());
+                    passiveJumps.set(message.channel.id);
                     console.log(`[PROACTIVE][${message.guild.id}][#${message.channel.name}] Jumping in due to keywords.`);
                 }
             }
@@ -152,22 +147,17 @@ async function handleMessageCreate(message, discordClient) {
 
             // --- 1. USER SPAM PROTECTION (Individual Cooldown) ---
             if (!isProactiveJump) { // Only cooldown explicit mentions/follow-ups
-                const lastUserMsg = userCooldowns.get(message.author.id);
-                if (lastUserMsg && Date.now() - lastUserMsg < USER_COOLDOWN_MS) {
+                if (userCooldowns.has(message.author.id)) {
                     try { await message.react('⏳'); } catch (e) {}
                     return;
                 }
-                userCooldowns.set(message.author.id, Date.now());
+                userCooldowns.set(message.author.id);
             }
 
             // --- 2. GLOBAL CHANNEL OVERLOAD (Queue Overflow Check) ---
-            if (channelOverloadState[message.channel.id]) {
-                if (Date.now() - channelOverloadState[message.channel.id] < OVERLOAD_COOLDOWN_MS) {
-                    try { await message.react('⏳'); } catch (e) {}
-                    return;
-                } else {
-                    delete channelOverloadState[message.channel.id];
-                }
+            if (channelOverloadState.has(message.channel.id)) {
+                try { await message.react('⏳'); } catch (e) {}
+                return;
             }
 
             if (!stateManager.serverStateCache[message.guild.id]) await dbOperations.loadStateForGuild(message.guild.id);
@@ -329,8 +319,8 @@ async function handleMessageCreate(message, discordClient) {
                     }
                 } else {
                     // Queue is full: Set GLOBAL channel overload state
-                    if (!channelOverloadState[message.channel.id]) {
-                        channelOverloadState[message.channel.id] = Date.now();
+                    if (!channelOverloadState.has(message.channel.id)) {
+                        channelOverloadState.set(message.channel.id);
                         await message.reply("i'm completely overloaded right now. please try again in a minute.");
                     }
                 }
