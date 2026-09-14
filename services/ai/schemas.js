@@ -41,4 +41,32 @@ const triviaPollJsonSchema = {
     additionalProperties: false
 };
 
-module.exports = { triviaPollSchema, triviaPollJsonSchema };
+const discussionPollSchema = {
+    type: Type.OBJECT,
+    properties: {
+        question: { type: Type.STRING },
+        options: { type: Type.ARRAY, items: { type: Type.STRING }, minItems: 4, maxItems: 4 }
+    },
+    required: ["question", "options"]
+};
+
+const discussionPollJsonSchema = {
+    type: 'object',
+    properties: {
+        question: {
+            type: 'string',
+            description: 'The discussion question to ask in the poll.'
+        },
+        options: {
+            type: 'array',
+            items: { type: 'string' },
+            minItems: 4,
+            maxItems: 4,
+            description: 'Exactly four distinct viewpoints or choices.'
+        }
+    },
+    required: ['question', 'options'],
+    additionalProperties: false
+};
+
+module.exports = { triviaPollSchema, triviaPollJsonSchema, discussionPollSchema, discussionPollJsonSchema };

@@ -1,9 +1,9 @@
 // --- AI Generation Functions (Single Runner Chain) ---
 const ai = require('./client');
-const { triviaPollSchema, triviaPollJsonSchema } = require('./schemas');
+const { triviaPollSchema, triviaPollJsonSchema, discussionPollSchema, discussionPollJsonSchema } = require('./schemas');
 const { generateTextWithOpenRouter, OPENROUTER_ENDPOINT, normalizeOpenRouterMessages } = require('./openrouter');
 const serviceHelpers = require('../../lib/serviceHelpers');
-const { FALLBACK_POLLS } = require('../polls/fallbacks');
+const { FALLBACK_POLLS, FALLBACK_DISCUSSION_POLLS } = require('../polls/fallbacks');
 const { OPENROUTER_API_KEY } = require('../../config');
 
 // 1. One declared AI provider chain executed by a single shared runner
@@ -98,6 +98,63 @@ function isRetryableErrorType(err) {
     return false;
 }
 
+function validateDiscussionPollData(data) {
+    if (!data || typeof data !== 'object') throw new Error('Invalid discussion poll payload.');
+    const question = typeof data.question === 'string' ? data.question.trim() : '';
+    const options = Array.isArray(data.options) ? data.options.map(o => String(o).trim()).filter(Boolean) : [];
+
+    if (!question) throw new Error('Missing question.');
+    if (options.length !== 4) throw new Error('Must contain exactly four options.');
+
+    return { type: 'discussion', question, options };
+}
+
+async function runGeminiDiscussionPoll(model, prompt, temperature, timeoutMs) {
+    const result = await serviceHelpers.callWithRetries(
+        () => ai.models.generateContent({ model, contents: prompt, config: { responseMimeType: 'application/json', responseSchema: discussionPollSchema, temperature } }),
+        { serviceKey: 'gemini_discussion_poll', timeoutMs, maxAttempts: 1 }
+    );
+    if (result.status === 'success') {
+        return validateDiscussionPollData(parseJsonMaybeWrapped(result.data.text.trim()));
+    }
+    const err = new Error('Gemini failed: ' + (result.error?.message || 'Unknown error'));
+    err.type = 'api';
+    throw err;
+}
+
+async function runOpenRouterDiscussionPoll(model, prompt, temperature, timeoutMs) {
+    if (!OPENROUTER_API_KEY) {
+        const err = new Error('No OpenRouter API key');
+        err.type = 'config';
+        throw err;
+    }
+    const response = await fetch(OPENROUTER_ENDPOINT, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'system', content: 'Return only valid JSON matching the schema.' }, { role: 'user', content: prompt }],
+            temperature, stream: false,
+            response_format: { type: 'json_schema', json_schema: { name: 'discussion_poll', strict: true, schema: discussionPollJsonSchema } }
+        }),
+        signal: AbortSignal.timeout(timeoutMs)
+    });
+    if (!response.ok) {
+        const err = new Error(`OpenRouter HTTP ${response.status}`);
+        err.type = 'status_code';
+        err.status = response.status;
+        throw err;
+    }
+    const payload = await response.json();
+    let text = payload?.choices?.[0]?.message?.content;
+    if (!text) {
+        const err = new Error('Empty completion');
+        err.type = 'api';
+        throw err;
+    }
+    return validateDiscussionPollData(parseJsonMaybeWrapped(text));
+}
+
 // 6. De-theatricalized prompts
 async function generateTriviaPoll(topic = '', history = []) {
     const historyInstruction = history.length > 0 ? `Avoid the following recent questions:\n- "${history.join('"\n- "')}"` : "";
@@ -143,6 +200,48 @@ async function generateTriviaPoll(topic = '', history = []) {
     }
     
     return { status: 'success', data: FALLBACK_POLLS[0] };
+}
+
+async function generateDiscussionPoll(topic = '', history = []) {
+    const historyInstruction = history.length > 0 ? `Avoid the following recent questions:\n- "${history.join('"\n- "')}"` : "";
+    const prompt = `Create an open-ended AI discussion question with no correct answer and 4 distinct viewpoints.\n${topic ? `Topic: ${topic}` : ''}\n${historyInstruction}\nKeep options under 55 characters.`;
+    const normalizedHistory = new Set(history.map(q => q.toLowerCase().trim()));
+    
+    for (const step of PROVIDER_CHAIN) {
+        for (let attempt = 1; attempt <= (step.maxAttempts || 1); attempt++) {
+            try {
+                if (step.provider === 'preset') {
+                    const available = FALLBACK_DISCUSSION_POLLS.filter(p => !normalizedHistory.has(p.question.toLowerCase().trim()));
+                    if (available.length > 0) {
+                        return { status: 'success', data: available[Math.floor(Math.random() * available.length)] };
+                    }
+                    return { status: 'success', data: FALLBACK_DISCUSSION_POLLS[0] };
+                }
+                
+                let pollData;
+                if (step.provider === 'gemini') {
+                    pollData = await runGeminiDiscussionPoll(step.model, prompt, 0.9, step.timeoutMs);
+                } else if (step.provider === 'openrouter') {
+                    pollData = await runOpenRouterDiscussionPoll(step.model, prompt, 0.9, step.timeoutMs);
+                }
+                
+                if (!normalizedHistory.has(pollData.question.toLowerCase().trim())) {
+                    return { status: 'success', data: pollData };
+                } else {
+                    const duplicateErr = new Error('Generated duplicate question');
+                    duplicateErr.type = 'parse'; // Treat duplicate as retryable
+                    throw duplicateErr;
+                }
+            } catch (err) {
+                console.warn(`[CHAIN] Provider ${step.provider} (${step.model || 'preset'}) failed on attempt ${attempt}: ${err.message} (Type: ${err.type || 'unknown'})`);
+                if (!isRetryableErrorType(err) && attempt < step.maxAttempts) {
+                    break;
+                }
+            }
+        }
+    }
+    
+    return { status: 'success', data: FALLBACK_DISCUSSION_POLLS[0] };
 }
 
 // Text Generation fallback logic (for chat etc)
@@ -229,6 +328,7 @@ module.exports = {
     // Provide a dummy function since we removed it but it might be imported
     generatePollWithRetries: async () => {},
     generateTriviaPoll,
+    generateDiscussionPoll,
     buildConversationHistory,
     generateChatResponseWithRetries
 };

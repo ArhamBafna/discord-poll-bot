@@ -10,7 +10,17 @@ async function resolveLastPoll(channel, discordClient) {
     if (!stateManager.serverStateCache[guildId]) await dbOperations.loadStateForGuild(guildId);
     const state = stateManager.getServerState(guildId);
 
-    if (state.lastPollData && state.lastPollData.type === 'trivia' && state.lastPollData.pollMessageId) {
+    if (state.lastPollData && state.lastPollData.type === 'discussion' && state.lastPollData.pollMessageId) {
+        console.log(`[RESOLVE][${guildId}][#${channel.name}] Resolving discussion poll.`);
+        try {
+            const answerEmbed = createAnswerEmbed(`Yesterday's Poll Wrap-Up`, `Yesterday's poll was an open discussion, so there are no points or correct answer to reveal. Thanks for sharing your thoughts!`);
+            await channel.send({ embeds: [answerEmbed] });
+            return true;
+        } catch (error) {
+            console.error(`[RESOLVE][${guildId}][#${channel.name}] FAILED to resolve discussion poll.`);
+            return false;
+        }
+    } else if (state.lastPollData && (state.lastPollData.type === 'trivia' || !state.lastPollData.type) && state.lastPollData.pollMessageId) {
         const pollId = state.lastPollData.pollMessageId;
         console.log(`[RESOLVE][${guildId}][#${channel.name}] Resolving trivia poll (ID: ${pollId}).`);
         try {

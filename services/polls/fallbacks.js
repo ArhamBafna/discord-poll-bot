@@ -58,4 +58,22 @@ const FALLBACK_POLLS = [
     }
 ];
 
-module.exports = { FALLBACK_POLLS };
+const FALLBACK_DISCUSSION_POLLS = [
+    {
+        type: 'discussion',
+        question: "What excites you most about the future of AI?",
+        options: ["Automating boring tasks", "New medical discoveries", "More personalized education", "Creative tools and art"]
+    },
+    {
+        type: 'discussion',
+        question: "Which AI safety concern do you think is most important right now?",
+        options: ["Job displacement", "Bias and fairness", "Misinformation", "Loss of human connection"]
+    },
+    {
+        type: 'discussion',
+        question: "How do you primarily use AI in your daily life?",
+        options: ["Writing and editing", "Coding assistance", "Brainstorming ideas", "I rarely use it"]
+    }
+];
+
+module.exports = { FALLBACK_POLLS, FALLBACK_DISCUSSION_POLLS };

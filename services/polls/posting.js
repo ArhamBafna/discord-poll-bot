@@ -3,12 +3,12 @@ const { createLeaderboardEmbed } = require('../../lib/embeds');
 const pool = require('../../database/connection');
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
-const { generateTriviaPoll } = require('../ai/generation');
-const { FALLBACK_POLLS } = require('./fallbacks');
+const { generateTriviaPoll, generateDiscussionPoll } = require('../ai/generation');
+const { FALLBACK_POLLS, FALLBACK_DISCUSSION_POLLS } = require('./fallbacks');
 const serviceHelpers = require('../../lib/serviceHelpers');
 const { generateTextWithRetries } = require('../ai/generation');
 const pollResolution = require('./resolution');
-const { getNYDateString } = require('../../utils/dateUtils');
+const { getNYDateString, getNYWeekString } = require('../../utils/dateUtils');
 const { TARGET_CHANNEL_IDS } = require('../../config');
 
 // State management for posting lock
@@ -27,21 +27,44 @@ async function getOrGenerateDailyPoll(dateStr) {
     const historyRes = await pool.query("SELECT question FROM question_history WHERE guild_id = 'global' ORDER BY created_at DESC LIMIT 50");
     const questionHistory = historyRes.rows.map(row => row.question);
 
-    let pollResult = await generateTriviaPoll('', questionHistory);
+    let pollResult;
     let newPollData;
     let usedFallback = false;
-
-    if (pollResult.status !== 'success') {
-        console.warn(`[POLL][COORDINATOR] Gemini and OpenRouter failed. Status: ${pollResult.status}. Deploying preset fallback.`);
-        serviceHelpers.metrics.fallback_served++;
-        usedFallback = true;
-        newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], kind: 'fallback' };
-    } else {
-        newPollData = pollResult.data;
-        newPollData.kind = 'AI';
+    
+    let isDiscussion = false;
+    const currentNYWeek = getNYWeekString(new Date());
+    const lastDiscussionWeek = await dbOperations.getGlobalStateValue('last_discussion_poll_week');
+    
+    if (lastDiscussionWeek !== currentNYWeek && Math.random() < 0.20) {
+        isDiscussion = true;
+        await dbOperations.saveGlobalStateValue('last_discussion_poll_week', currentNYWeek);
     }
 
-    newPollData.type = 'trivia';
+    if (isDiscussion) {
+        pollResult = await generateDiscussionPoll('', questionHistory);
+        if (pollResult.status !== 'success') {
+            console.warn(`[POLL][COORDINATOR] Gemini and OpenRouter failed for discussion. Deploying preset fallback.`);
+            serviceHelpers.metrics.fallback_served++;
+            usedFallback = true;
+            newPollData = { ...FALLBACK_DISCUSSION_POLLS[Math.floor(Math.random() * FALLBACK_DISCUSSION_POLLS.length)], kind: 'fallback' };
+        } else {
+            newPollData = pollResult.data;
+            newPollData.kind = 'AI';
+        }
+        newPollData.type = 'discussion';
+    } else {
+        pollResult = await generateTriviaPoll('', questionHistory);
+        if (pollResult.status !== 'success') {
+            console.warn(`[POLL][COORDINATOR] Gemini and OpenRouter failed. Status: ${pollResult.status}. Deploying preset fallback.`);
+            serviceHelpers.metrics.fallback_served++;
+            usedFallback = true;
+            newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], kind: 'fallback' };
+        } else {
+            newPollData = pollResult.data;
+            newPollData.kind = 'AI';
+        }
+        newPollData.type = 'trivia';
+    }
     
     // Save to global kv_store and history
     await dbOperations.saveGlobalStateValue(globalKey, newPollData);
@@ -87,7 +110,12 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
         newPollData.kind = isCatchUp ? 'catch-up' : newPollData.kind;
 
         if (newPollData) {
-            let pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll!" : "@everyone **Today's AI Poll!** 🧠";
+            let pollIntroMessage;
+            if (newPollData.type === 'discussion') {
+                pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot! Here is today's discussion poll! 💬 (No right or wrong answer, share your thoughts!)" : "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts!)";
+            } else {
+                pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll!" : "@everyone **Today's AI Poll!** 🧠";
+            }
             if (newPollData.kind === 'fallback') pollIntroMessage += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
 
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
