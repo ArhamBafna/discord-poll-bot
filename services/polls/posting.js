@@ -37,15 +37,16 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false) {
             console.warn(`[POLL][FALLBACK] Gemini and OpenRouter both failed. Status: ${pollResult.status}. Deploying a preset fallback poll.`);
             serviceHelpers.metrics.fallback_served++;
             usedFallback = true;
-            newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], isFallback: true };
+            newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], kind: 'fallback' };
         } else {
             newPollData = pollResult.data;
+            newPollData.kind = isCatchUp ? 'catch-up' : 'AI';
         }
 
         if (newPollData) {
             newPollData.type = 'trivia'; // All polls are now trivia
             let pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll! 😅" : "@everyone **Today's AI Poll!** 🧠";
-            if (usedFallback) pollIntroMessage += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
+            if (newPollData.kind === 'fallback') pollIntroMessage += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
 
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
             newPollData.pollMessageId = newPollMessage.id;

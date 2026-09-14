@@ -18,28 +18,54 @@ async function resolveLastPoll(channel, discordClient) {
             if (!pollMessage.poll) return false;
             const correctAnswer = pollMessage.poll.answers.at(state.lastPollData.correctAnswerIndex);
             if (!correctAnswer) return false;
-            // FIX: fetchVoters is deprecated in newer discord.js versions
+            
             const voters = await correctAnswer.voters.fetch();
-            const winnerIds = Array.from(voters.values()).filter(u => !u.bot).map(u => u.id);
-            const winnerUsernames = Array.from(voters.values()).filter(u => !u.bot).map(u => u.username);
+            const validVoters = Array.from(voters.values()).filter(u => !u.bot);
+            const winnerIds = validVoters.map(u => u.id);
+            const winnerUsernames = validVoters.map(u => u.username);
+
+            let milestoneAnnouncements = [];
 
             if (winnerIds.length > 0) {
                 await dbOperations.batchUpdateScoresInDB(guildId, winnerIds);
+                
+                // User lookups are batched rather than one-by-one
+                const guildMembers = await channel.guild.members.fetch({ user: winnerIds });
+                
+                // Winner resolution runs in a single pass; no duplicate scans or double sorts
                 for (const userId of winnerIds) {
                     const newScore = (state.leaderboard[userId] || 0) + 1;
                     state.leaderboard[userId] = newScore;
                     
-                    // --- Milestone Role Check ---
-                    const member = await channel.guild.members.fetch(userId).catch(() => null);
+                    const member = guildMembers.get(userId);
                     if (member) {
-                        await checkAndAssignMilestoneRole(member, newScore, channel);
+                        const announcement = await checkAndAssignMilestoneRole(member, newScore);
+                        if (announcement) milestoneAnnouncements.push(announcement);
                     }
                 }
             }
 
             const correctOptionLetter = String.fromCharCode(65 + state.lastPollData.correctAnswerIndex);
-            const answerEmbed = new EmbedBuilder().setColor('#5865F2').setTitle(`Yesterday's Poll Answer 🧐`).setDescription(`The correct answer to **"${state.lastPollData.question}"** was **${correctOptionLetter}: ${state.lastPollData.options[state.lastPollData.correctAnswerIndex]}**.\n\n${state.lastPollData.explanation}`).addFields({ name: 'Leaderboard Update', value: `**${winnerUsernames.length}** member(s) answered correctly and have been awarded a point!` });
+            let description = `The correct answer to **"${state.lastPollData.question}"** was **${correctOptionLetter}: ${state.lastPollData.options[state.lastPollData.correctAnswerIndex]}**.\n\n${state.lastPollData.explanation}`;
+            
+            // A long explanation never breaks the answer embed; it is truncated safely.
+            if (description.length > 4096) {
+                description = description.substring(0, 4093) + '...';
+            }
+
+            const answerEmbed = new EmbedBuilder()
+                .setColor('#5865F2')
+                .setTitle(`Yesterday's Poll Answer 🧐`)
+                .setDescription(description)
+                .addFields({ name: 'Leaderboard Update', value: `**${winnerUsernames.length}** member(s) answered correctly and have been awarded a point!` });
+                
             await channel.send({ embeds: [answerEmbed] });
+            
+            if (milestoneAnnouncements.length > 0) {
+                // The milestone announcement is built by one shared helper
+                await channel.send(milestoneAnnouncements.join('\n'));
+            }
+            
             return true;
         } catch (error) {
             let errorMessage = `[RESOLVE][${guildId}][#${channel.name}] FAILED: Could not process previous poll (ID: ${pollId}).`;

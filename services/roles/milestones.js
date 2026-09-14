@@ -3,14 +3,15 @@ const stateManager = require('../../state/manager');
 /**
  * Checks if a user has reached a milestone and assigns the corresponding role.
  * Replaces old milestone roles with the new one (Highest Only).
+ * Returns an announcement string if a role was added.
  */
-async function checkAndAssignMilestoneRole(member, score, channel = null) {
-    if (!member || !member.guild) return;
+async function checkAndAssignMilestoneRole(member, score) {
+    if (!member || !member.guild) return null;
     const guildId = member.guild.id;
     const state = stateManager.getServerState(guildId);
     const milestones = state.roleMilestones;
 
-    if (!milestones || Object.keys(milestones).length === 0) return;
+    if (!milestones || Object.keys(milestones).length === 0) return null;
 
     // 1. Find all milestones reached
     const reachedMilestonePoints = Object.keys(milestones)
@@ -18,7 +19,7 @@ async function checkAndAssignMilestoneRole(member, score, channel = null) {
         .filter(pts => score >= pts)
         .sort((a, b) => b - a); // Highest first
 
-    if (reachedMilestonePoints.length === 0) return;
+    if (reachedMilestonePoints.length === 0) return null;
 
     const highestMilestonePoints = reachedMilestonePoints[0];
     const targetRoleId = milestones[highestMilestonePoints];
@@ -28,7 +29,7 @@ async function checkAndAssignMilestoneRole(member, score, channel = null) {
     const currentMilestoneRoles = member.roles.cache.filter(role => allMilestoneRoleIds.includes(role.id));
     
     // If they already have EXACTLY the right role and nothing else, skip.
-    if (currentMilestoneRoles.size === 1 && currentMilestoneRoles.has(targetRoleId)) return;
+    if (currentMilestoneRoles.size === 1 && currentMilestoneRoles.has(targetRoleId)) return null;
 
     try {
         // 3. Identify roles to remove (Replace mode)
@@ -43,16 +44,13 @@ async function checkAndAssignMilestoneRole(member, score, channel = null) {
             const targetRole = await member.guild.roles.fetch(targetRoleId);
             if (targetRole) {
                 await member.roles.add(targetRole, `Reached AI milestone: ${highestMilestonePoints} points`);
-                
-                // 5. Public Announcement (only if points were just earned, not during startup sync)
-                if (channel) {
-                    await channel.send(`🎉 **Congratulations <@${member.id}>!** You've reached the **${highestMilestonePoints} points** milestone and earned the **${targetRole.name}** role! 🚀`);
-                }
+                return `🎉 **Congratulations <@${member.id}>!** You've reached the **${highestMilestonePoints} points** milestone and earned the **${targetRole.name}** role! 🚀`;
             }
         }
     } catch (error) {
         console.error(`[ROLES][${guildId}] Failed to update roles for user ${member.id}:`, error);
     }
+    return null;
 }
 
 /**
