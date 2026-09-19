@@ -82,4 +82,4 @@ The daily polls run are schedule-based but include catch-up logic. If you start 
 
 Feel free to make issues or PRs!
 
-Built for [OWGT (OneWorldGreaterTogether)](https://linktr.ee/owgt).
+Built for [OWGT (OneWorldGreaterTogether)](https://linktr.ee/owgt), a non-profit dedicated to empowering students through technology.
