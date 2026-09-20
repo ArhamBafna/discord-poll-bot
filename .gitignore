@@ -1,5 +1,6 @@
 # Secrets
 .env
+bot.zip
 
 # Dependencies
 node_modules/

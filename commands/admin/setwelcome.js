@@ -10,7 +10,7 @@ async function handleSetWelcome(interaction) {
     try {
         const success = await dbOperations.updateAndPersist(guildId, 'welcomeTemplate', template);
         if (!success) throw new Error('DB Error');
-        const preview = renderWelcomeTemplate(template, interaction.user, 'someone', 'someone', 'i added a point to someone\\'s score!');
+        const preview = renderWelcomeTemplate(template, interaction.user, 'someone', 'someone', "i added a point to someone's score!");
         await interaction.reply(`Success! The welcome message template has been updated.\n\n**Preview:**\n${preview}`);
     } catch (error) {
         console.error('[SETWELCOME] Error setting welcome template:', error);

@@ -8,7 +8,7 @@ async function handleHelp(interaction) {
     const embed = createInfoEmbed('Bot Commands', 'Here are the available commands:');
     
     for (const cmd of registry) {
-        let name = \`/\${cmd.builder.name}\`;
+        let name = `/${cmd.builder.name}`;
         if (cmd.adminOnly) {
             name += ' (Admin)';
         }

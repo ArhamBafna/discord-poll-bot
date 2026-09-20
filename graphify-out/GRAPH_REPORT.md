@@ -1,16 +1,16 @@
-# Graph Report - discord-poll-bot  (2026-09-14)
+# Graph Report - discord-poll-bot  (2026-09-20)
 
 ## Corpus Check
-- 65 files · ~20,497 words
+- 66 files · ~57,631 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 496 nodes · 802 edges · 25 communities
-- Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 87 edges (avg confidence: 0.85)
+- 515 nodes · 836 edges · 33 communities
+- Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 90 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c06804e2`
+- Built from commit: `0525b57c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -25,20 +25,28 @@
 - index.js
 - backup.test.js
 - ready.js
-- serviceHelpers.js
+- settings.js
 - registry.js
-- OWGT Bot
+- Discord AI Poll Bot
 - Database runbook
 - db-init.test.js
 - migrate-test.js
 - ExpiringMap
 - db-operations.test.js
 - help.js
-- leaderboard.js
+- embeds.js
 - interaction.js
 - knowledge.js
 - setcc.js
 - setinvitepoints.js
+- serviceHelpers.js
+- invites.js
+- startup.js
+- engagement.js
+- Handoff: HeavenCloud Deployment & Bot Setup
+- ai/client.js
+- config/index.js
+- setcontrolrole.js
 
 ## God Nodes (most connected - your core abstractions)
 1. `sortRows()` - 11 edges
@@ -53,37 +61,37 @@
 10. `generateTriviaPoll()` - 8 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `handleRelinkpoll()` --calls--> `generateTextWithRetries()`  [EXTRACTED]
-  commands/admin/relinkpoll.js → services/ai/generation.js
-- `handleReady()` --calls--> `initializeDatabase()`  [EXTRACTED]
-  handlers/ready.js → database/initialization.js
 - `handleReady()` --calls--> `checkAndPostEngagement()`  [EXTRACTED]
   handlers/ready.js → services/engagement.js
 - `handleReady()` --calls--> `cacheAndSyncInvites()`  [EXTRACTED]
   handlers/ready.js → services/invites/tracking.js
-- `handleReady()` --calls--> `syncAllMilestoneRoles()`  [EXTRACTED]
-  handlers/ready.js → services/roles/milestones.js
+- `handleReady()` --calls--> `postWeeklySummary()`  [EXTRACTED]
+  handlers/ready.js → services/polls/posting.js
+- `handleReady()` --calls--> `runCentralizedDailyPost()`  [EXTRACTED]
+  handlers/ready.js → services/polls/posting.js
+- `handleReady()` --calls--> `checkForMissedPolls()`  [EXTRACTED]
+  handlers/ready.js → services/polls/scheduling.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (25 total, 0 thin omitted)
+## Communities (33 total, 0 thin omitted)
 
 ### Community 0 - "manager.js"
-Cohesion: 0.20
-Nodes (6): dbOperations, handleSetControlRole(), stateManager, handleRank(), stateManager, serverStateCache
+Cohesion: 0.33
+Nodes (3): handleRank(), stateManager, serverStateCache
 
 ### Community 1 - "generation.js"
-Cohesion: 0.10
-Nodes (31): dbOperations, { generateTriviaPoll }, handleAsknow(), stateManager, ai, { FALLBACK_POLLS }, { generateTextWithOpenRouter, OPENROUTER_ENDPOINT, normalizeOpenRouterMessages }, generateTriviaPoll() (+23 more)
+Cohesion: 0.11
+Nodes (28): dbOperations, { generateTriviaPoll }, handleAsknow(), stateManager, ai, { FALLBACK_POLLS, FALLBACK_DISCUSSION_POLLS }, generateDiscussionPoll(), { generateTextWithOpenRouter, OPENROUTER_ENDPOINT, normalizeOpenRouterMessages } (+20 more)
 
 ### Community 2 - "posting.js"
 Cohesion: 0.10
-Nodes (30): dbOperations, { getNYDateString }, handlePostdaily(), { performDailyPost }, stateManager, handleReady(), generateTextWithRetries(), { createLeaderboardEmbed } (+22 more)
+Nodes (28): dbOperations, { getNYDateString }, handlePostdaily(), { performDailyPost }, stateManager, { createLeaderboardEmbed }, dbOperations, { FALLBACK_POLLS, FALLBACK_DISCUSSION_POLLS } (+20 more)
 
 ### Community 3 - "resolve.js"
-Cohesion: 0.07
-Nodes (37): dbOperations, handleMilestones(), stateManager, { syncAllMilestoneRoles }, { checkAndAssignMilestoneRole }, dbOperations, handlePoints(), stateManager (+29 more)
+Cohesion: 0.09
+Nodes (26): dbOperations, handleMilestones(), stateManager, { syncAllMilestoneRoles }, { checkAndAssignMilestoneRole }, dbOperations, handlePoints(), stateManager (+18 more)
 
 ### Community 4 - "operations.js"
 Cohesion: 0.08
@@ -98,28 +106,28 @@ Cohesion: 0.09
 Nodes (21): @google/genai, node-cron, dependencies, discord.js, @google/genai, node-cron, pg, description (+13 more)
 
 ### Community 7 - "index.js"
-Cohesion: 0.05
-Nodes (47): ai, { Client, GatewayIntentBits }, discordClient, applyNetworkDefaults(), getSanitizedDbUrl(), validateConfig(), { getSanitizedDbUrl }, { Pool } (+39 more)
+Cohesion: 0.17
+Nodes (13): initializeDatabase(), { log }, pool, handleReady(), discordClient, { handleGuildCreate, handleInviteCreate, handleInviteDelete, handleGuildMemberAdd }, { handleInteractionCreate }, { handleMessageCreate } (+5 more)
 
 ### Community 8 - "backup.test.js"
 Cohesion: 0.05
 Nodes (52): assert, crypto, fileA, fileB, fileC, fs, makeSnapshot(), original (+44 more)
 
 ### Community 9 - "ready.js"
-Cohesion: 0.07
-Nodes (31): commands, { DISCORD_BOT_TOKEN }, { registry }, rest, { REST, Routes }, { cacheAndSyncInvites }, { checkAndPostEngagement }, { checkForMissedPolls } (+23 more)
+Cohesion: 0.10
+Nodes (19): commands, { DISCORD_BOT_TOKEN }, { registry }, rest, { REST, Routes }, { cacheAndSyncInvites }, { checkAndPostEngagement }, { checkForMissedPolls } (+11 more)
 
-### Community 10 - "serviceHelpers.js"
-Cohesion: 0.12
-Nodes (19): { ALLOWED_USERNAME, CONTROL_ROLE_NAME }, handleSettings(), { renderWelcomeTemplate }, stateManager, dbOperations, handleSetWelcome(), { renderWelcomeTemplate }, stateManager (+11 more)
+### Community 10 - "settings.js"
+Cohesion: 0.20
+Nodes (10): { ALLOWED_USERNAME, CONTROL_ROLE_NAME }, handleSettings(), { renderWelcomeTemplate }, stateManager, dbOperations, handleSetWelcome(), { renderWelcomeTemplate }, stateManager (+2 more)
 
 ### Community 11 - "registry.js"
 Cohesion: 0.12
 Nodes (16): { handleAsknow }, { handleHelp }, { handleKnowledge }, { handleLeaderboard }, { handleMilestones }, { handlePoints }, { handlePostdaily }, { handleRank } (+8 more)
 
-### Community 12 - "OWGT Bot"
-Cohesion: 0.22
-Nodes (8): Administrator commands, Invite rewards 👋, Knowledge topics, Leaderboard 🏆, Overview, OWGT Bot, Reliability, User commands
+### Community 12 - "Discord AI Poll Bot"
+Cohesion: 0.25
+Nodes (7): Commands, Discord AI Poll Bot, Features, How it works, Local setup, Other, Quick start
 
 ### Community 13 - "Database runbook"
 Cohesion: 0.22
@@ -145,13 +153,13 @@ Nodes (10): assert, codecs, doubleParsed, knownSettingsKeys, numericKnowledge, p
 Cohesion: 0.33
 Nodes (6): registry, { ALLOWED_USERNAME, CONTROL_ROLE_NAME }, { createInfoEmbed }, handleHelp(), { registry }, createInfoEmbed()
 
-### Community 20 - "leaderboard.js"
-Cohesion: 0.50
-Nodes (4): { createLeaderboardEmbed }, handleLeaderboard(), stateManager, createLeaderboardEmbed()
+### Community 20 - "embeds.js"
+Cohesion: 0.15
+Nodes (17): dbOperations, { EmbedBuilder }, { generateTextWithRetries }, handleRelinkpoll(), { replySuccess, replyError }, stateManager, { createLeaderboardEmbed }, handleLeaderboard() (+9 more)
 
 ### Community 21 - "interaction.js"
-Cohesion: 0.40
-Nodes (4): { ALLOWED_USERNAME, CONTROL_ROLE_NAME }, dbOperations, { registry }, stateManager
+Cohesion: 0.33
+Nodes (5): { ALLOWED_USERNAME, CONTROL_ROLE_NAME }, dbOperations, handleInteractionCreate(), { registry }, stateManager
 
 ### Community 22 - "knowledge.js"
 Cohesion: 0.50
@@ -165,24 +173,56 @@ Nodes (3): dbOperations, handleSetCC(), stateManager
 Cohesion: 0.50
 Nodes (3): dbOperations, handleSetInvitePoints(), stateManager
 
+### Community 25 - "serviceHelpers.js"
+Cohesion: 0.16
+Nodes (19): callWithRetries(), circuitBreakers, convQueue, { generateTextWithOpenRouter }, isRetryableError(), metrics, processConvQueue(), promiseWithTimeout() (+11 more)
+
+### Community 26 - "invites.js"
+Cohesion: 0.16
+Nodes (13): { ALLOWED_USERNAME }, dbOperations, handleGuildCreate(), handleInviteCreate(), handleInviteDelete(), { inviteCache, cacheAndSyncInvites }, pool, { renderWelcomeTemplate } (+5 more)
+
+### Community 27 - "startup.js"
+Cohesion: 0.24
+Nodes (11): applyNetworkDefaults(), validateConfig(), assert, { startBot, loginWithTimeout }, { testDiscordGateway }, { DISCORD_BOT_TOKEN, applyNetworkDefaults, validateConfig }, https, { log } (+3 more)
+
+### Community 28 - "engagement.js"
+Cohesion: 0.23
+Nodes (12): ADMIN_CHANNEL_NAMES, ADMIN_COMMANDS, checkAndPostEngagement(), COMMAND_DESCRIPTIONS, dbOperations, findEngagementChannels(), getOrderedWritableChannels(), isWritableTextChannel() (+4 more)
+
+### Community 29 - "Handoff: HeavenCloud Deployment & Bot Setup"
+Cohesion: 0.18
+Nodes (10): 1. Windows Zip Backslash Pathology (`MODULE_NOT_FOUND`), 2. Missing Environment Variables (`DATABASE_URL is not a valid URL`), 3. Syntax Errors in Commands & Handlers, Current Status, Errors Encountered & What Changed, Handoff: HeavenCloud Deployment & Bot Setup, How to Create the HeavenCloud Compatible Zip, Inclusions & Exclusions (+2 more)
+
+### Community 30 - "ai/client.js"
+Cohesion: 0.25
+Nodes (6): ai, { Client, GatewayIntentBits }, discordClient, { GEMINI_API_KEY }, { GoogleGenAI }, { log }
+
+### Community 31 - "config/index.js"
+Cohesion: 0.29
+Nodes (5): getSanitizedDbUrl(), { getSanitizedDbUrl }, { Pool }, assert, config
+
+### Community 32 - "setcontrolrole.js"
+Cohesion: 0.50
+Nodes (3): dbOperations, handleSetControlRole(), stateManager
+
 ## Knowledge Gaps
-- **283 isolated node(s):** `{ Client, GatewayIntentBits }`, `ai`, `discordClient`, `stateManager`, `dbOperations` (+278 more)
+- **289 isolated node(s):** `{ Client, GatewayIntentBits }`, `ai`, `discordClient`, `stateManager`, `dbOperations` (+284 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `log()` connect `index.js` to `ready.js`, `posting.js`?**
-  _High betweenness centrality (0.007) - this node is a cross-community bridge._
+- **Why does `log()` connect `index.js` to `ready.js`, `startup.js`, `ai/client.js`?**
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
+- **Why does `generateTextWithOpenRouter()` connect `serviceHelpers.js` to `generation.js`, `embeds.js`, `message.js`?**
+  _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **What connects `{ Client, GatewayIntentBits }`, `ai`, `discordClient` to the rest of the system?**
-  _283 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _289 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `generation.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.09523809523809523 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10685483870967742 - nodes in this community are weakly interconnected._
 - **Should `posting.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.0962566844919786 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1028225806451613 - nodes in this community are weakly interconnected._
 - **Should `resolve.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.06976744186046512 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09462365591397849 - nodes in this community are weakly interconnected._
 - **Should `operations.js` be split into smaller, more focused modules?**
   _Cohesion score 0.07681365576102418 - nodes in this community are weakly interconnected._
-- **Should `message.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.11333333333333333 - nodes in this community are weakly interconnected._

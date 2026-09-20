@@ -1,3 +1,9 @@
+try {
+    process.loadEnvFile();
+} catch (e) {
+    // Ignore if environment variables already set or file not found
+}
+
 const GEMINI_API_KEY = process.env.API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;

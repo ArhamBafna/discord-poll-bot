@@ -88,7 +88,7 @@ const registry = [
         adminOnly: true
     },
     {
-        builder: new SlashCommandBuilder().setName('setcc').setDescription('Sets the user to be CC\\'d in welcome messages.')
+        builder: new SlashCommandBuilder().setName('setcc').setDescription("Sets the user to be CC'd in welcome messages.")
             .addUserOption(option => option.setName('user').setDescription('The user to CC.').setRequired(true)),
         handler: handleSetCC,
         adminOnly: true

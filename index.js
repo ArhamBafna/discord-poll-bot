@@ -1,6 +1,10 @@
 // A Discord bot that posts daily trivia and discussion polls.
 // Includes a role-restricted on-demand command and an automatic leaderboard with weekly summaries.
 
+try {
+    process.loadEnvFile();
+} catch (e) {}
+
 process.on('unhandledRejection', err => {
     console.error(`[${new Date().toISOString()}] [FATAL] Unhandled rejection: ${err.message || err}`);
     console.error(err);

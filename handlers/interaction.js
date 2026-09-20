@@ -54,7 +54,7 @@ async function handleInteractionCreate(interaction, discordClient) {
                 const success = await dbOperations.updateAndPersistKnowledge(guildId, topic, knowledgeText);
 
                 if (success) { // Update cache
-                    await interaction.reply({ content: \`Knowledge for topic **\${topic}** has been updated successfully!\` });
+                    await interaction.reply({ content: `Knowledge for topic **${topic}** has been updated successfully!` });
                 } else {
                     await interaction.reply({ content: 'A database error occurred while trying to update the knowledge base.' });
                 }
@@ -89,12 +89,12 @@ async function handleInteractionCreate(interaction, discordClient) {
         await cmdDef.handler(interaction, discordClient);
 
     } catch (error) {
-        const commandIdentifier = interaction.isCommand() ? \`/\${interaction.commandName}\` : \`(ID: \${interaction.customId})\`;
-        console.error(\`[INTERACTION_HANDLER] Error on \${commandIdentifier} in guild \${interaction.guild?.id}:\`, error);
+        const commandIdentifier = interaction.isCommand() ? `/${interaction.commandName}` : `(ID: ${interaction.customId})`;
+        console.error(`[INTERACTION_HANDLER] Error on ${commandIdentifier} in guild ${interaction.guild?.id}:`, error);
 
         // Skip error reply for timed-out interactions (Discord error 10062)
         if (error.code === 10062 || error.rawError?.code === 10062) {
-            console.warn(\`[INTERACTION_HANDLER] Interaction timed out (10062). Skipping error reply.\`);
+            console.warn(`[INTERACTION_HANDLER] Interaction timed out (10062). Skipping error reply.`);
             return;
         }
 
@@ -104,7 +104,7 @@ async function handleInteractionCreate(interaction, discordClient) {
             } else {
                 await interaction.reply({ content: "Oops! Something went wrong while executing this command.", ephemeral: true });
             }
-        } catch (replyError) { console.error(\`[INTERACTION_HANDLER] CRITICAL: Failed to send error reply.\`, replyError); }
+        } catch (replyError) { console.error(`[INTERACTION_HANDLER] CRITICAL: Failed to send error reply.`, replyError); }
     }
 }
 
