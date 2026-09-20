@@ -1,6 +1,6 @@
 # Discord AI Poll Bot
 
-A Discord bot that posts daily AI trivia, tracks leaderboards, and chats with your server.
+A futuristic Discord bot that posts daily AI trivia, tracks leaderboards, and chats with your server.
 
 ![Bot Example](assets/discord-bot-eg.png)
 
