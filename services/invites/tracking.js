@@ -19,10 +19,7 @@ async function cacheAndSyncInvites(guild) {
         }
 
         const invites = await guild.invites.fetch();
-        const client = await pool.connect();
         try {
-            await client.query('BEGIN');
-            
             // Collect valid invites
             const values = [];
             let queryParams = [];
@@ -43,15 +40,10 @@ async function cacheAndSyncInvites(guild) {
                     ON CONFLICT (guild_id, code) 
                     DO UPDATE SET uses = EXCLUDED.uses, inviter_id = EXCLUDED.inviter_id
                 `;
-                await client.query(queryText, queryParams);
+                await pool.query(queryText, queryParams);
             }
-            
-            await client.query('COMMIT');
         } catch (e) {
-            await client.query('ROLLBACK');
             throw e;
-        } finally {
-            client.release();
         }
         
         // Cache with expiry

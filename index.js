@@ -23,7 +23,9 @@ const { handleMessageCreate } = require('./handlers/message');
 const { handleInteractionCreate } = require('./handlers/interaction');
 const { handleGuildCreate, handleInviteCreate, handleInviteDelete, handleGuildMemberAdd } = require('./handlers/invites');
 
-discordClient.once('ready', () => handleReady(discordClient));
+const { Events } = require('discord.js');
+
+discordClient.once(Events.ClientReady, () => handleReady(discordClient));
 discordClient.on('messageCreate', (message) => handleMessageCreate(message, discordClient));
 discordClient.on('interactionCreate', (interaction) => handleInteractionCreate(interaction, discordClient));
 discordClient.on('guildCreate', (guild) => handleGuildCreate(guild));
