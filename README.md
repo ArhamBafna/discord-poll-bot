@@ -1,82 +1,66 @@
 # Discord AI Poll Bot
 
-A futuristic Discord bot that posts daily AI trivia, tracks leaderboards, and chats with your server.
-
+A fun and futuristic Discord bot that:
+- posts daily AI trivia
+- tracks leaderboards
+- chats with your server
+(a lot of other exquisite features listed later)
+  
 ![Bot Example](assets/discord-bot-eg.png)
 
-## Quick start
+## Quick start / Local setup
 
-This bot is built for self-hosting. You'll need to set up your own instance.
-
-**Install dependencies:**
-```bash
-npm install
-```
-
-**Configure:**
-Copy the .env.example as .env and fill it out as shown later.
-
-**Run:**
-```bash
-npm start
-```
-
-## Features
-
-- Daily AI trivia polls at a customizable time
-- Point tracking with server leaderboards  
-- Responds to @ mentions and sometimes joins conversations
-- Invite = points systems
-- Weekly summaries every Sunday at 9 PM Eastern
-- Backup polls when AI services fail
-
-## Local setup
+You can self-host the bot for now. Direct invites are coming very soon.
 
 You need:
 - Node.js 22+
 - PostgreSQL  
-- Discord bot token
+- Discord bot token (from Discord Developer Portal)
 - Google Gemini API key
 - OpenRouter API (optional)
 
-Add these to your .env file:
+How to set up:
+- Use git to clone this repo. 
+- Install dependencies with 'npm install'
+- Copy the .env.example as .env and fill it out with your bot token, Gemini API key, database URL, target channel IDs, and optionally OpenRouter API key.
+- Actually run it with 'npm start'
 
-```bash
-DISCORD_BOT_TOKEN=your_discord_bot_token_here
-API_KEY=your_gemini_api_key_here  
-DATABASE_URL=postgresql://user:password@localhost:5432/dbname
-TARGET_CHANNEL_IDS=channel_id_1,channel_id_2
-OPENROUTER_API_KEY=your_openrouter_key_here
-```
-The OpenRouter API Key is an optional backup.
+## Features
 
-Start with:
-```bash
-npm start
-```
+- Daily AI trivia polls (at a customizable time)
+- Awards points for correct poll answers
+- Optionally, awards points for invites
+- Maintains a leaderboard of points
+- Responds to @ mentions and sometimes joins conversations (as a simple AI chatbot)
+- Weekly summaries every Sunday at 9 PM Eastern (time to soon be customizable)
+- Preset backup polls when APIs fail to generate one
+- Has a knowledge base it uses when chatting
+- A lot of other features. Find them out on Discord!
 
 ## How it works
 
-Discord.js handles the Discord connection. Google Gemini generates trivia questions and powers chat responses. When Gemini goes down, the bot tries OpenRouter, then falls back to preset questions.
-
-The daily polls run are schedule-based but include catch-up logic. If you start the bot after 6 AM it posts today's poll if it's missing. The leaderboard is PostgreSQL.
+- Discord.js for Discord connection.
+- Uses AI services: mainly the Gemini API, but the OpenRouter API for backup.
+- AI generates polls + answer explanations + responses in chat.
+- Daily polls have catch-up logic TOO!! If the bot is offline when it was supposed to post the poll, it posts it when it gets online! Pretty neat right
+- Leaderboard is PostgreSQL.
 
 ## Commands
 
-**Everyone:**
+**Everyone can use:**
 - '/leaderboard' - Top 10 point leaders
-- '/rank [@user]' - Your rank or someone else's
+- '/rank [@user]' - Yours/ someone else's rank
 - '/help' - All available commands
 
-**Admins:** (need 'bot-control' role)
-- '/settings' - Current bot settings
-- '/points add/remove/set @user <amount>' - Manage user points
-- '/asknow [topic]' - Instant trivia poll (no points awarded)
-- '/milestones add <points> <@role>' - Role rewards at point thresholds
-- '/invitepoints <amount>' - Points per successful invite
-- '/knowledge update/list/delete <topic>' - Custom knowledge topics
-- '/postdaily' - Manual daily poll trigger
-- '/setwelcome <template>' - Custom welcome messages
+**Only admins can use:** (need 'bot-control' role)
+- '/settings' - Current bot config
+- '/points add/remove/set @user <amount>' - add/subtract/set a user's points
+- '/asknow [topic]' - generate a trivia poll right now (optionally, on a specific topic). No points awarded
+- '/milestones add <points> <@role>' - At certain points, give a milestone role (beta)
+- '/invitepoints <amount>' - Points to give a member upon inviting someone
+- '/knowledge update/list/delete <topic>' - Update the knowledge base
+- '/postdaily' - Manual daily poll trigger (there should not be a use, since all fallback logic exists, but still there because idk what can happen)
+- '/setwelcome <template>' - Custom message to welcome a new user.
 
 ## Other
 
