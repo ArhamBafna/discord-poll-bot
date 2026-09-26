@@ -2,7 +2,7 @@ const stateManager = require('../state/manager');
 const dbOperations = require('../database/operations');
 
 const USER_COMMANDS = ['leaderboard', 'rank', 'help'];
-const ADMIN_COMMANDS = ['asknow', 'points', 'knowledge', 'relinkpoll', 'resolve', 'milestones', 'settings', 'setcc', 'setwelcome', 'setcontrolrole'];
+const ADMIN_COMMANDS = ['poll', 'points', 'knowledge', 'milestones', 'config'];
 const USER_CHANNEL_NAMES = ['general', 'chat', 'community', 'lounge'];
 const ADMIN_CHANNEL_NAMES = ['team', 'staff', 'admin', 'admins', 'mod', 'mods', 'moderator', 'moderators'];
 
@@ -13,12 +13,11 @@ const COMMAND_DESCRIPTIONS = {
     leaderboard: 'Check who is leading the server in AI trivia!',
     rank: 'See your personal rank and total points.',
     help: 'Get a full list of everything I can do.',
-    asknow: 'Instantly start an on-demand AI poll.',
-    resolve: 'Resolve on-demand or daily polls on demand.',
+    poll: 'Start, resolve, or relink daily and on-demand trivia polls.',
     points: 'Manually adjust user scores for rewards or corrections.',
     knowledge: 'Update my brain with new info about OWGT or AI.',
     milestones: 'Set up automated roles for point achievements.',
-    settings: 'View all server configurations at once.'
+    config: 'View or update server configurations (welcome message, CCs, roles, invite points).'
 };
 
 function isWritableTextChannel(channel, guild) {
@@ -113,7 +112,7 @@ async function checkAndPostEngagement(discordClient) {
 
                     const message = 'Hi Team! Quick admin reminder.\n\n'
                         + `I noticed we have not used ${cmds} much lately. These features can help the server significantly.\n\n`
-                        + 'If you have a moment, test them or check **/settings** to see the current setup.';
+                        + 'If you have a moment, test them or check **/config view** to see the current setup.';
 
                     await teamChannel.send(message);
                     state.lastEngagementPostTeam = now.toISOString();

@@ -47,4 +47,12 @@ for (const dep of deprecatedNames) {
     assert.strictEqual(found, undefined, `deprecated command '${dep}' must not be in registry`);
 }
 
+// 4. Exact registry command set matches expectations
+const registeredNames = registry.map(c => c.builder.name);
+assert.deepStrictEqual(
+    registeredNames.sort(),
+    ['config', 'help', 'knowledge', 'leaderboard', 'milestones', 'points', 'poll', 'rank'].sort(),
+    'registry contains exactly expected 8 commands'
+);
+
 console.log('commands-registry tests passed');

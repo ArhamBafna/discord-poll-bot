@@ -5,9 +5,6 @@ const { generateTriviaPoll, generateTextWithRetries } = require('../../services/
 const { createSuccessEmbed, replySuccess, replyError } = require('../../lib/embeds');
 const { resolveLastPoll } = require('../../services/polls/resolution');
 
-function normalizeResolveMode(rawMode) {
-    return rawMode || null;
-}
 
 async function resolveOnDemand(interaction, state, guildId) {
     if (!state.activeOnDemandPoll) {
@@ -61,7 +58,7 @@ async function handleAsk(interaction, state, guildId) {
 }
 
 async function handleResolve(interaction, state, guildId, discordClient) {
-    const mode = normalizeResolveMode(interaction.options.getString('poll'));
+    const mode = interaction.options.getString('poll');
     if (mode === 'on-demand') return resolveOnDemand(interaction, state, guildId);
     if (mode === 'daily') return resolveDaily(interaction, state, guildId, discordClient);
     return interaction.reply({ content: 'Invalid resolve poll type. Use on-demand or daily.', ephemeral: true });
