@@ -2,7 +2,7 @@ const stateManager = require('../state/manager');
 const dbOperations = require('../database/operations');
 
 const USER_COMMANDS = ['leaderboard', 'rank', 'help'];
-const ADMIN_COMMANDS = ['asknow', 'postdaily', 'points', 'knowledge', 'relinkpoll', 'resolve', 'milestones', 'settings', 'setcc', 'setwelcome', 'setcontrolrole'];
+const ADMIN_COMMANDS = ['asknow', 'points', 'knowledge', 'relinkpoll', 'resolve', 'milestones', 'settings', 'setcc', 'setwelcome', 'setcontrolrole'];
 const USER_CHANNEL_NAMES = ['general', 'chat', 'community', 'lounge'];
 const ADMIN_CHANNEL_NAMES = ['team', 'staff', 'admin', 'admins', 'mod', 'mods', 'moderator', 'moderators'];
 

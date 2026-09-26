@@ -59,7 +59,6 @@ How to set up:
 - '/milestones add <points> <@role>' - At certain points, give a milestone role (beta)
 - '/invitepoints <amount>' - Points to give a member upon inviting someone
 - '/knowledge update/list/delete <topic>' - Update the knowledge base
-- '/postdaily' - Manual daily poll trigger (there should not be a use, since all fallback logic exists, but still there because idk what can happen)
 - '/setwelcome <template>' - Custom message to welcome a new user.
 
 ## Other

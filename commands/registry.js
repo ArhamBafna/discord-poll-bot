@@ -6,7 +6,6 @@ const { handleRank } = require('./user/rank');
 const { handleHelp } = require('./user/help');
 const { handlePoints } = require('./admin/points');
 const { handleAsknow } = require('./admin/asknow');
-const { handlePostdaily } = require('./admin/postdaily');
 const { handleRelinkpoll } = require('./admin/relinkpoll');
 const { handleResolve } = require('./admin/resolve');
 const { handleKnowledge } = require('./admin/knowledge');
@@ -53,11 +52,6 @@ const registry = [
         builder: new SlashCommandBuilder().setName('asknow').setDescription('Starts an on-demand trivia poll (does not award points).')
             .addStringOption(option => option.setName('topic').setDescription('An optional topic for the poll.')),
         handler: handleAsknow,
-        adminOnly: true
-    },
-    {
-        builder: new SlashCommandBuilder().setName('postdaily').setDescription('Manually triggers the daily poll sequence.'),
-        handler: handlePostdaily,
         adminOnly: true
     },
     {

@@ -112,9 +112,9 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
         if (newPollData) {
             let pollIntroMessage;
             if (newPollData.type === 'discussion') {
-                pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot! Here is today's discussion poll! 💬 (No right or wrong answer, share your thoughts!)" : "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts!)";
+                pollIntroMessage = isCatchUp ? "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts! Also it's a late post cuz I missed the set time.)" : "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts!)";
             } else {
-                pollIntroMessage = isCatchUp ? "Oops, I missed the 6 AM slot (likely due to downtime)! Here is today's poll!" : "@everyone **Today's AI Poll!** 🧠";
+                pollIntroMessage = isCatchUp ? "@everyone **Today's AI Poll!** 🧠 (It's a late post cuz I missed the set time.)" : "@everyone **Today's AI Poll!** 🧠";
             }
             if (newPollData.kind === 'fallback') pollIntroMessage += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
 
