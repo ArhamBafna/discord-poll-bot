@@ -2,7 +2,7 @@
 
 > God node · 10 connections · `handlers/message.js`
 
-**Community:** [Message Chat and AI Conversation](Message_Chat_and_AI_Conversation.md)
+**Community:** [Message Handling & AI Sessions](Message_Handling_&_AI_Sessions.md)
 
 ## Connections by Relation
 

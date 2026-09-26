@@ -2,7 +2,7 @@
 
 > God node · 10 connections · `handlers/ready.js`
 
-**Community:** [Bot Startup and Scheduled Jobs](Bot_Startup_and_Scheduled_Jobs.md)
+**Community:** [Logging & Service Initialization](Logging_&_Service_Initialization.md)
 
 ## Connections by Relation
 

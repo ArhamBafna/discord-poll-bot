@@ -2,7 +2,7 @@
 
 > God node · 11 connections · `tools/db/tables.js`
 
-**Community:** [Backup Validation and Hashing](Backup_Validation_and_Hashing.md)
+**Community:** [DB Backup, Restore & Tables](DB_Backup,_Restore_&_Tables.md)
 
 ## Connections by Relation
 

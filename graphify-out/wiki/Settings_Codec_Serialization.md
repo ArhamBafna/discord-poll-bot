@@ -1,18 +1,18 @@
 # Settings Codec Serialization
 
-> 38 nodes · cohesion 0.08
+> 38 nodes
 
 ## Key Concepts
 
-- **operations.js** (45 connections) — `database/operations.js`
+- **operations.js** (44 connections) — `database/operations.js`
 - **codecs.js** (13 connections) — `database/codecs.js`
 - **codecs.test.js** (12 connections) — `test/codecs.test.js`
 - **isSettingsKey()** (7 connections) — `database/codecs.js`
 - **parseStoredValue()** (6 connections) — `database/codecs.js`
 - **serializeStoredValue()** (6 connections) — `database/codecs.js`
 - **loadStateForGuild()** (4 connections) — `database/operations.js`
-- **CODECS** (3 connections) — `database/codecs.js`
 - **getStateValue()** (3 connections) — `database/operations.js`
+- **CODECS** (3 connections) — `database/codecs.js`
 - **resetGuildState()** (2 connections) — `database/operations.js`
 - **saveStateToDB()** (2 connections) — `database/operations.js`
 - **updateAndPersist()** (2 connections) — `database/operations.js`
@@ -26,25 +26,25 @@
 - **admin_saveKnowledgeBase()** (1 connections) — `database/operations.js`
 - **admin_setOrAddUserScore()** (1 connections) — `database/operations.js`
 - **batchUpdateScoresInDB()** (1 connections) — `database/operations.js`
-- **{ CODECS, isSettingsKey, parseStoredValue, serializeStoredValue }** (1 connections) — `database/operations.js`
 - **deleteStateFromDB()** (1 connections) — `database/operations.js`
 - **getGlobalStateValue()** (1 connections) — `database/operations.js`
+- **incrementCommandUsage()** (1 connections) — `database/operations.js`
 - *... and 13 more nodes in this community*
 
 ## Relationships
 
-- [Daily Post and Fallback Polls](Daily_Post_and_Fallback_Polls.md) (3 shared connections)
-- [Config and DB Init Test Fixtures](Config_and_DB_Init_Test_Fixtures.md) (2 shared connections)
-- [Milestone Roles and Points](Milestone_Roles_and_Points.md) (2 shared connections)
-- [Poll Resolution Modes](Poll_Resolution_Modes.md) (2 shared connections)
-- [Custom Content and Rank Commands](Custom_Content_and_Rank_Commands.md) (2 shared connections)
-- [Role and Points Settings](Role_and_Points_Settings.md) (2 shared connections)
-- [Settings and Welcome Templates](Settings_and_Welcome_Templates.md) (2 shared connections)
-- [AskNow AI Poll Generation](AskNow_AI_Poll_Generation.md) (1 shared connections)
-- [Knowledge Base Entry](Knowledge_Base_Entry.md) (1 shared connections)
-- [Poll Relinking Command](Poll_Relinking_Command.md) (1 shared connections)
-- [Database Connection and Logging](Database_Connection_and_Logging.md) (1 shared connections)
-- [Invite Tracking and Cache](Invite_Tracking_and_Cache.md) (1 shared connections)
+- [State Manager & Knowledge Commands](State_Manager_&_Knowledge_Commands.md) (3 shared connections)
+- [Embeds, Polls & Leaderboard](Embeds,_Polls_&_Leaderboard.md) (3 shared connections)
+- [Admin Roles, Milestones & Points](Admin_Roles,_Milestones_&_Points.md) (2 shared connections)
+- [Config & DB Connection](Config_&_DB_Connection.md) (2 shared connections)
+- [Daily Poll Posting & Scheduling](Daily_Poll_Posting_&_Scheduling.md) (2 shared connections)
+- [DB Operations Tests](DB_Operations_Tests.md) (1 shared connections)
+- [AI Poll & Text Generation](AI_Poll_&_Text_Generation.md) (1 shared connections)
+- [SetCC Command](SetCC_Command.md) (1 shared connections)
+- [SetInvitePoints Command](SetInvitePoints_Command.md) (1 shared connections)
+- [Welcome Message Settings](Welcome_Message_Settings.md) (1 shared connections)
+- [Interaction Handling & Help](Interaction_Handling_&_Help.md) (1 shared connections)
+- [Invite Tracking & Guild Events](Invite_Tracking_&_Guild_Events.md) (1 shared connections)
 
 ## Source Files
 
@@ -54,7 +54,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 55 (71%)
+- EXTRACTED: 54 (71%)
 - INFERRED: 22 (29%)
 - AMBIGUOUS: 0 (0%)
 

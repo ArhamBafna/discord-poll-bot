@@ -2,7 +2,7 @@
 
 > God node · 10 connections · `assets/discord-bot-eg.png`
 
-**Community:** [Discord Poll UI and Embeds](Discord_Poll_UI_and_Embeds.md)
+**Community:** [Poll Embeds & Gamification](Poll_Embeds_&_Gamification.md)
 
 ## Connections by Relation
 

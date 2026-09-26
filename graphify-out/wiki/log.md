@@ -2,14 +2,14 @@
 
 > God node · 13 connections · `utils/logger.js`
 
-**Community:** [Configuration Loading and Validation](Configuration_Loading_and_Validation.md)
+**Community:** [Logging & Service Initialization](Logging_&_Service_Initialization.md)
 
 ## Connections by Relation
 
 ### calls
 - [log()](log.md) `EXTRACTED`
 - [handleReady()](handleReady.md) `EXTRACTED`
-- startBot() `EXTRACTED`
+- [startBot()](startBot.md) `EXTRACTED`
 - initializeDatabase() `EXTRACTED`
 - testDiscordGateway() `EXTRACTED`
 - main() `EXTRACTED`

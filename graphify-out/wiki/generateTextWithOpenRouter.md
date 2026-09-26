@@ -2,7 +2,7 @@
 
 > God node · 10 connections · `services/ai/openrouter.js`
 
-**Community:** [AskNow AI Poll Generation](AskNow_AI_Poll_Generation.md)
+**Community:** [AI Poll & Text Generation](AI_Poll_&_Text_Generation.md)
 
 ## Connections by Relation
 
