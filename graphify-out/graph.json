@@ -4,21 +4,6 @@
   "graph": {
     "hyperedges": [
       {
-        "id": "logo_brand_mark_composition",
-        "label": "Logo Brand Mark Composition",
-        "nodes": [
-          "assets_logo",
-          "assets_logo_neural_wireframe_brain",
-          "assets_logo_connected_node_glyph",
-          "assets_logo_rounded_app_icon_tile",
-          "assets_logo_magenta_cyan_neon_palette"
-        ],
-        "relation": "form",
-        "confidence": "EXTRACTED",
-        "confidence_score": 1.0,
-        "source_file": "assets/logo.png"
-      },
-      {
         "id": "poll_answering_interaction",
         "label": "Poll Answering Interaction",
         "nodes": [
@@ -48,34 +33,6 @@
         "confidence": "EXTRACTED",
         "confidence_score": 1.0,
         "source_file": "assets/discord-bot-eg.png"
-      },
-      {
-        "id": "logo_neon_cyberpunk_visual_language",
-        "label": "Neon Cyberpunk Visual Language",
-        "nodes": [
-          "assets_logo_magenta_cyan_neon_palette",
-          "assets_logo_neural_wireframe_brain",
-          "assets_logo_connected_node_glyph",
-          "assets_logo_dark_navy_backdrop"
-        ],
-        "relation": "form",
-        "confidence": "INFERRED",
-        "confidence_score": 0.75,
-        "source_file": "assets/logo.png"
-      },
-      {
-        "id": "bot_visual_branding",
-        "label": "Bot Visual Branding",
-        "nodes": [
-          "assets_logo_neural_brain_icon",
-          "assets_logo_app_icon",
-          "assets_logo_neon_gradient",
-          "assets_discord_bot_eg_owgt_bot"
-        ],
-        "relation": "form",
-        "confidence": "INFERRED",
-        "confidence_score": 0.85,
-        "source_file": "assets/logo.png"
       },
       {
         "id": "single_select_poll_mechanics",
@@ -409,6 +366,114 @@
       "source_location": "L85"
     },
     {
+      "id": "test_backup_test_makesnapshot",
+      "label": "makeSnapshot()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "makesnapshot()",
+      "source_file": "test/backup.test.js",
+      "source_location": "L18"
+    },
+    {
+      "id": "test_backup_test_runvalidate",
+      "label": "runValidate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "runvalidate()",
+      "source_file": "test/backup.test.js",
+      "source_location": "L30"
+    },
+    {
+      "id": "tools_db_backup_main",
+      "label": "main()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "main()",
+      "source_file": "tools/db/backup.js",
+      "source_location": "L9"
+    },
+    {
+      "id": "tools_db_restore_main",
+      "label": "main()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "main()",
+      "source_file": "tools/db/restore.js",
+      "source_location": "L9"
+    },
+    {
+      "id": "tools_db_tables_hashsnapshot",
+      "label": "hashSnapshot()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "hashsnapshot()",
+      "source_file": "tools/db/tables.js",
+      "source_location": "L26"
+    },
+    {
+      "id": "tools_db_tables_sortrows",
+      "label": "sortRows()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "sortrows()",
+      "source_file": "tools/db/tables.js",
+      "source_location": "L18"
+    },
+    {
+      "id": "tools_db_tables_stablestringify",
+      "label": "stableStringify()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "stablestringify()",
+      "source_file": "tools/db/tables.js",
+      "source_location": "L9"
+    },
+    {
+      "id": "tools_db_validate_main",
+      "label": "main()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "main()",
+      "source_file": "tools/db/validate.js",
+      "source_location": "L13"
+    },
+    {
+      "id": "tools_db_validate_tablehash",
+      "label": "tableHash()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "tablehash()",
+      "source_file": "tools/db/validate.js",
+      "source_location": "L7"
+    },
+    {
       "id": "config_index_applynetworkdefaults",
       "label": "applyNetworkDefaults()",
       "_callable": true,
@@ -431,18 +496,6 @@
       "norm_label": "validateconfig()",
       "source_file": "config/index.js",
       "source_location": "L20"
-    },
-    {
-      "id": "index_main",
-      "label": "main()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "startup.js",
-      "file_type": "code",
-      "norm_label": "main()",
-      "source_file": "index.js",
-      "source_location": "L36"
     },
     {
       "id": "utils_startup_loginwithtimeout",
@@ -646,7 +699,7 @@
       "file_type": "code",
       "norm_label": "postweeklysummary()",
       "source_file": "services/polls/posting.js",
-      "source_location": "L153"
+      "source_location": "L149"
     },
     {
       "id": "services_polls_resolution_resolvelastpoll",
@@ -769,6 +822,18 @@
       "source_location": "L9"
     },
     {
+      "id": "handlers_invites_handleinvitecreate",
+      "label": "handleInviteCreate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 16,
+      "community_name": "invites.js",
+      "file_type": "code",
+      "norm_label": "handleinvitecreate()",
+      "source_file": "handlers/invites.js",
+      "source_location": "L13"
+    },
+    {
       "id": "handlers_invites_handleinvitedelete",
       "label": "handleInviteDelete()",
       "_callable": true,
@@ -791,18 +856,6 @@
       "norm_label": "cacheandsyncinvites()",
       "source_file": "services/invites/tracking.js",
       "source_location": "L8"
-    },
-    {
-      "id": "handlers_invites_handleinvitecreate",
-      "label": "handleInviteCreate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "index.js",
-      "file_type": "code",
-      "norm_label": "handleinvitecreate()",
-      "source_file": "handlers/invites.js",
-      "source_location": "L13"
     },
     {
       "id": "commands_admin_milestones_handlemilestones",
@@ -887,114 +940,6 @@
       "norm_label": "createinfoembed()",
       "source_file": "lib/embeds.js",
       "source_location": "L24"
-    },
-    {
-      "id": "test_backup_test_makesnapshot",
-      "label": "makeSnapshot()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "makesnapshot()",
-      "source_file": "test/backup.test.js",
-      "source_location": "L18"
-    },
-    {
-      "id": "test_backup_test_runvalidate",
-      "label": "runValidate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "runvalidate()",
-      "source_file": "test/backup.test.js",
-      "source_location": "L30"
-    },
-    {
-      "id": "tools_db_backup_main",
-      "label": "main()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "main()",
-      "source_file": "tools/db/backup.js",
-      "source_location": "L9"
-    },
-    {
-      "id": "tools_db_restore_main",
-      "label": "main()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "main()",
-      "source_file": "tools/db/restore.js",
-      "source_location": "L9"
-    },
-    {
-      "id": "tools_db_tables_hashsnapshot",
-      "label": "hashSnapshot()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "hashsnapshot()",
-      "source_file": "tools/db/tables.js",
-      "source_location": "L26"
-    },
-    {
-      "id": "tools_db_tables_sortrows",
-      "label": "sortRows()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "sortrows()",
-      "source_file": "tools/db/tables.js",
-      "source_location": "L18"
-    },
-    {
-      "id": "tools_db_tables_stablestringify",
-      "label": "stableStringify()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "stablestringify()",
-      "source_file": "tools/db/tables.js",
-      "source_location": "L9"
-    },
-    {
-      "id": "tools_db_validate_main",
-      "label": "main()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "main()",
-      "source_file": "tools/db/validate.js",
-      "source_location": "L13"
-    },
-    {
-      "id": "tools_db_validate_tablehash",
-      "label": "tableHash()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "tablehash()",
-      "source_file": "tools/db/validate.js",
-      "source_location": "L7"
     },
     {
       "id": "services_engagement_checkandpostengagement",
@@ -1127,30 +1072,6 @@
       "norm_label": "getsanitizeddburl()",
       "source_file": "config/index.js",
       "source_location": "L26"
-    },
-    {
-      "id": "tools_db_migrate_test_listmigrations",
-      "label": "listMigrations()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "migrate-test.js",
-      "file_type": "code",
-      "norm_label": "listmigrations()",
-      "source_file": "tools/db/migrate-test.js",
-      "source_location": "L8"
-    },
-    {
-      "id": "tools_db_migrate_test_main",
-      "label": "main()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "migrate-test.js",
-      "file_type": "code",
-      "norm_label": "main()",
-      "source_file": "tools/db/migrate-test.js",
-      "source_location": "L12"
     },
     {
       "id": "database_codecs_issettingskey",
@@ -1477,6 +1398,18 @@
       "source_location": "L17"
     },
     {
+      "id": "index_main",
+      "label": "main()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 30,
+      "community_name": "log",
+      "file_type": "code",
+      "norm_label": "main()",
+      "source_file": "index.js",
+      "source_location": "L36"
+    },
+    {
       "id": "utils_logger_log",
       "label": "log()",
       "_callable": true,
@@ -1549,6 +1482,18 @@
       "source_location": "L17"
     },
     {
+      "id": "services_polls_posting_getpollintromessage",
+      "label": "getPollIntroMessage()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "getpollintromessage()",
+      "source_file": "services/polls/posting.js",
+      "source_location": "L241"
+    },
+    {
       "id": "services_polls_posting_performdailypost",
       "label": "performDailyPost()",
       "_callable": true,
@@ -1570,7 +1515,7 @@
       "file_type": "code",
       "norm_label": "runcentralizeddailypost()",
       "source_file": "services/polls/posting.js",
-      "source_location": "L141"
+      "source_location": "L137"
     },
     {
       "id": "services_polls_scheduling_checkformissedpolls",
@@ -1583,6 +1528,18 @@
       "norm_label": "checkformissedpolls()",
       "source_file": "services/polls/scheduling.js",
       "source_location": "L8"
+    },
+    {
+      "id": "test_posting_messages_test_relabelkind",
+      "label": "relabelKind()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "relabelkind()",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L58"
     },
     {
       "id": "utils_dateutils_getnydatestring",
@@ -1607,6 +1564,30 @@
       "norm_label": "getnyweekstring()",
       "source_file": "utils/dateUtils.js",
       "source_location": "L9"
+    },
+    {
+      "id": "tools_db_migrate_test_listmigrations",
+      "label": "listMigrations()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 5,
+      "community_name": "db-init.test.js",
+      "file_type": "code",
+      "norm_label": "listmigrations()",
+      "source_file": "tools/db/migrate-test.js",
+      "source_location": "L8"
+    },
+    {
+      "id": "tools_db_migrate_test_main",
+      "label": "main()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 5,
+      "community_name": "db-init.test.js",
+      "file_type": "code",
+      "norm_label": "main()",
+      "source_file": "tools/db/migrate-test.js",
+      "source_location": "L12"
     },
     {
       "id": "commands_user_rank_handlerank",
@@ -2035,39 +2016,6 @@
       "file_type": "code",
       "norm_label": "{ type }",
       "source_file": "services/ai/schemas.js",
-      "source_location": "L2"
-    },
-    {
-      "id": "services_polls_fallbacks",
-      "label": "fallbacks.js",
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "generation.js",
-      "file_type": "code",
-      "norm_label": "fallbacks.js",
-      "source_file": "services/polls/fallbacks.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "services_polls_fallbacks_fallback_discussion_polls",
-      "label": "FALLBACK_DISCUSSION_POLLS",
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "generation.js",
-      "file_type": "code",
-      "norm_label": "fallback_discussion_polls",
-      "source_file": "services/polls/fallbacks.js",
-      "source_location": "L61"
-    },
-    {
-      "id": "services_polls_fallbacks_fallback_polls",
-      "label": "FALLBACK_POLLS",
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "generation.js",
-      "file_type": "code",
-      "norm_label": "fallback_polls",
-      "source_file": "services/polls/fallbacks.js",
       "source_location": "L2"
     },
     {
@@ -2500,6 +2448,358 @@
       "source_location": "L15"
     },
     {
+      "id": "test_tables_test",
+      "label": "tables.test.js",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "tables.test.js",
+      "source_file": "test/tables.test.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "test_tables_test_a",
+      "label": "a",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "a",
+      "source_file": "test/tables.test.js",
+      "source_location": "L13"
+    },
+    {
+      "id": "test_tables_test_assert",
+      "label": "assert",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "assert",
+      "source_file": "test/tables.test.js",
+      "source_location": "L8"
+    },
+    {
+      "id": "test_tables_test_b",
+      "label": "b",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "b",
+      "source_file": "test/tables.test.js",
+      "source_location": "L14"
+    },
+    {
+      "id": "test_tables_test_c",
+      "label": "c",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "c",
+      "source_file": "test/tables.test.js",
+      "source_location": "L18"
+    },
+    {
+      "id": "test_tables_test_crypto",
+      "label": "crypto",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "crypto",
+      "source_file": "test/tables.test.js",
+      "source_location": "L9"
+    },
+    {
+      "id": "test_tables_test_h1",
+      "label": "h1",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "h1",
+      "source_file": "test/tables.test.js",
+      "source_location": "L42"
+    },
+    {
+      "id": "test_tables_test_h2",
+      "label": "h2",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "h2",
+      "source_file": "test/tables.test.js",
+      "source_location": "L43"
+    },
+    {
+      "id": "test_tables_test_h3",
+      "label": "h3",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "h3",
+      "source_file": "test/tables.test.js",
+      "source_location": "L48"
+    },
+    {
+      "id": "test_tables_test_h4",
+      "label": "h4",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "h4",
+      "source_file": "test/tables.test.js",
+      "source_location": "L52"
+    },
+    {
+      "id": "test_tables_test_known_tables",
+      "label": "{ KNOWN_TABLES }",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "{ known_tables }",
+      "source_file": "test/tables.test.js",
+      "source_location": "L56"
+    },
+    {
+      "id": "test_tables_test_rows",
+      "label": "rows",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "rows",
+      "source_file": "test/tables.test.js",
+      "source_location": "L22"
+    },
+    {
+      "id": "test_tables_test_sorted",
+      "label": "sorted",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "sorted",
+      "source_file": "test/tables.test.js",
+      "source_location": "L23"
+    },
+    {
+      "id": "test_tables_test_stablestringify_sortrows_hashsnapshot",
+      "label": "{ stableStringify, sortRows, hashSnapshot }",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "{ stablestringify, sortrows, hashsnapshot }",
+      "source_file": "test/tables.test.js",
+      "source_location": "L10"
+    },
+    {
+      "id": "test_tables_test_tables",
+      "label": "tables",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "tables",
+      "source_file": "test/tables.test.js",
+      "source_location": "L35"
+    },
+    {
+      "id": "test_tables_test_tables2",
+      "label": "tables2",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "tables2",
+      "source_file": "test/tables.test.js",
+      "source_location": "L47"
+    },
+    {
+      "id": "tools_db_backup",
+      "label": "backup.js",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "backup.js",
+      "source_file": "tools/db/backup.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "tools_db_backup_crypto",
+      "label": "crypto",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "crypto",
+      "source_file": "tools/db/backup.js",
+      "source_location": "L5"
+    },
+    {
+      "id": "tools_db_backup_fs",
+      "label": "fs",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "fs",
+      "source_file": "tools/db/backup.js",
+      "source_location": "L4"
+    },
+    {
+      "id": "tools_db_backup_known_tables_sortrows_hashsnapshot",
+      "label": "{ KNOWN_TABLES, sortRows, hashSnapshot }",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "{ known_tables, sortrows, hashsnapshot }",
+      "source_file": "tools/db/backup.js",
+      "source_location": "L7"
+    },
+    {
+      "id": "tools_db_backup_pool",
+      "label": "{ Pool }",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "{ pool }",
+      "source_file": "tools/db/backup.js",
+      "source_location": "L6"
+    },
+    {
+      "id": "tools_db_restore",
+      "label": "restore.js",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "restore.js",
+      "source_file": "tools/db/restore.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "tools_db_restore_fs",
+      "label": "fs",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "fs",
+      "source_file": "tools/db/restore.js",
+      "source_location": "L5"
+    },
+    {
+      "id": "tools_db_restore_known_tables_sortrows_stablestringify",
+      "label": "{ KNOWN_TABLES, sortRows, stableStringify }",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "{ known_tables, sortrows, stablestringify }",
+      "source_file": "tools/db/restore.js",
+      "source_location": "L7"
+    },
+    {
+      "id": "tools_db_restore_pool",
+      "label": "{ Pool }",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "{ pool }",
+      "source_file": "tools/db/restore.js",
+      "source_location": "L6"
+    },
+    {
+      "id": "tools_db_tables",
+      "label": "tables.js",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "tables.js",
+      "source_file": "tools/db/tables.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "tools_db_tables_known_tables",
+      "label": "KNOWN_TABLES",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "known_tables",
+      "source_file": "tools/db/tables.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "tools_db_validate",
+      "label": "validate.js",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "validate.js",
+      "source_file": "tools/db/validate.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "tools_db_validate_crypto",
+      "label": "crypto",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "crypto",
+      "source_file": "tools/db/validate.js",
+      "source_location": "L4"
+    },
+    {
+      "id": "tools_db_validate_fs",
+      "label": "fs",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "fs",
+      "source_file": "tools/db/validate.js",
+      "source_location": "L3"
+    },
+    {
+      "id": "tools_db_validate_known_tables_sortrows_stablestringify_hashsnapshot",
+      "label": "{ KNOWN_TABLES, sortRows, stableStringify, hashSnapshot }",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "code",
+      "norm_label": "{ known_tables, sortrows, stablestringify, hashsnapshot }",
+      "source_file": "tools/db/validate.js",
+      "source_location": "L5"
+    },
+    {
+      "id": "ref_pg",
+      "label": "pg",
+      "_origin": "ast",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "file_type": "concept",
+      "norm_label": "pg",
+      "source_file": "package.json",
+      "source_location": "L18"
+    },
+    {
       "id": "test_startup_test",
       "label": "startup.test.js",
       "_origin": "ast",
@@ -2896,180 +3196,125 @@
       "source_location": "L1"
     },
     {
-      "id": "test_tables_test",
-      "label": "tables.test.js",
+      "id": "test_db_operations_test",
+      "label": "db-operations.test.js",
       "_origin": "ast",
       "community": 15,
-      "community_name": "tables.test.js",
+      "community_name": "db-operations.test.js",
       "file_type": "code",
-      "norm_label": "tables.test.js",
-      "source_file": "test/tables.test.js",
+      "norm_label": "db-operations.test.js",
+      "source_file": "test/db-operations.test.js",
       "source_location": "L1"
     },
     {
-      "id": "test_tables_test_a",
-      "label": "a",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "a",
-      "source_file": "test/tables.test.js",
-      "source_location": "L13"
-    },
-    {
-      "id": "test_tables_test_assert",
+      "id": "test_db_operations_test_assert",
       "label": "assert",
       "_origin": "ast",
       "community": 15,
-      "community_name": "tables.test.js",
+      "community_name": "db-operations.test.js",
       "file_type": "code",
       "norm_label": "assert",
-      "source_file": "test/tables.test.js",
-      "source_location": "L8"
-    },
-    {
-      "id": "test_tables_test_b",
-      "label": "b",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "b",
-      "source_file": "test/tables.test.js",
-      "source_location": "L14"
-    },
-    {
-      "id": "test_tables_test_c",
-      "label": "c",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "c",
-      "source_file": "test/tables.test.js",
-      "source_location": "L18"
-    },
-    {
-      "id": "test_tables_test_crypto",
-      "label": "crypto",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "crypto",
-      "source_file": "test/tables.test.js",
+      "source_file": "test/db-operations.test.js",
       "source_location": "L9"
     },
     {
-      "id": "test_tables_test_h1",
-      "label": "h1",
+      "id": "test_db_operations_test_codecs",
+      "label": "codecs",
       "_origin": "ast",
       "community": 15,
-      "community_name": "tables.test.js",
+      "community_name": "db-operations.test.js",
       "file_type": "code",
-      "norm_label": "h1",
-      "source_file": "test/tables.test.js",
-      "source_location": "L42"
-    },
-    {
-      "id": "test_tables_test_h2",
-      "label": "h2",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "h2",
-      "source_file": "test/tables.test.js",
-      "source_location": "L43"
-    },
-    {
-      "id": "test_tables_test_h3",
-      "label": "h3",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "h3",
-      "source_file": "test/tables.test.js",
-      "source_location": "L48"
-    },
-    {
-      "id": "test_tables_test_h4",
-      "label": "h4",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "h4",
-      "source_file": "test/tables.test.js",
-      "source_location": "L52"
-    },
-    {
-      "id": "test_tables_test_known_tables",
-      "label": "{ KNOWN_TABLES }",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "{ known_tables }",
-      "source_file": "test/tables.test.js",
-      "source_location": "L56"
-    },
-    {
-      "id": "test_tables_test_rows",
-      "label": "rows",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "rows",
-      "source_file": "test/tables.test.js",
-      "source_location": "L22"
-    },
-    {
-      "id": "test_tables_test_sorted",
-      "label": "sorted",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "sorted",
-      "source_file": "test/tables.test.js",
-      "source_location": "L23"
-    },
-    {
-      "id": "test_tables_test_stablestringify_sortrows_hashsnapshot",
-      "label": "{ stableStringify, sortRows, hashSnapshot }",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "tables.test.js",
-      "file_type": "code",
-      "norm_label": "{ stablestringify, sortrows, hashsnapshot }",
-      "source_file": "test/tables.test.js",
+      "norm_label": "codecs",
+      "source_file": "test/db-operations.test.js",
       "source_location": "L10"
     },
     {
-      "id": "test_tables_test_tables",
-      "label": "tables",
+      "id": "test_db_operations_test_doubleparsed",
+      "label": "doubleParsed",
       "_origin": "ast",
       "community": 15,
-      "community_name": "tables.test.js",
+      "community_name": "db-operations.test.js",
       "file_type": "code",
-      "norm_label": "tables",
-      "source_file": "test/tables.test.js",
-      "source_location": "L35"
+      "norm_label": "doubleparsed",
+      "source_file": "test/db-operations.test.js",
+      "source_location": "L53"
     },
     {
-      "id": "test_tables_test_tables2",
-      "label": "tables2",
+      "id": "test_db_operations_test_knownsettingskeys",
+      "label": "knownSettingsKeys",
       "_origin": "ast",
       "community": 15,
-      "community_name": "tables.test.js",
+      "community_name": "db-operations.test.js",
       "file_type": "code",
-      "norm_label": "tables2",
-      "source_file": "test/tables.test.js",
+      "norm_label": "knownsettingskeys",
+      "source_file": "test/db-operations.test.js",
+      "source_location": "L20"
+    },
+    {
+      "id": "test_db_operations_test_numericknowledge",
+      "label": "numericKnowledge",
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "db-operations.test.js",
+      "file_type": "code",
+      "norm_label": "numericknowledge",
+      "source_file": "test/db-operations.test.js",
+      "source_location": "L40"
+    },
+    {
+      "id": "test_db_operations_test_parsed",
+      "label": "parsed",
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "db-operations.test.js",
+      "file_type": "code",
+      "norm_label": "parsed",
+      "source_file": "test/db-operations.test.js",
       "source_location": "L47"
+    },
+    {
+      "id": "test_db_operations_test_plain",
+      "label": "plain",
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "db-operations.test.js",
+      "file_type": "code",
+      "norm_label": "plain",
+      "source_file": "test/db-operations.test.js",
+      "source_location": "L36"
+    },
+    {
+      "id": "test_db_operations_test_pollobj",
+      "label": "pollObj",
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "db-operations.test.js",
+      "file_type": "code",
+      "norm_label": "pollobj",
+      "source_file": "test/db-operations.test.js",
+      "source_location": "L45"
+    },
+    {
+      "id": "test_db_operations_test_requiredsettings",
+      "label": "requiredSettings",
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "db-operations.test.js",
+      "file_type": "code",
+      "norm_label": "requiredsettings",
+      "source_file": "test/db-operations.test.js",
+      "source_location": "L22"
+    },
+    {
+      "id": "test_db_operations_test_serialized",
+      "label": "serialized",
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "db-operations.test.js",
+      "file_type": "code",
+      "norm_label": "serialized",
+      "source_file": "test/db-operations.test.js",
+      "source_location": "L46"
     },
     {
       "id": "handlers_invites",
@@ -3684,182 +3929,6 @@
       "source_location": "L3"
     },
     {
-      "id": "tools_db_validate",
-      "label": "validate.js",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "validate.js",
-      "source_file": "tools/db/validate.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "tools_db_validate_crypto",
-      "label": "crypto",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "crypto",
-      "source_file": "tools/db/validate.js",
-      "source_location": "L4"
-    },
-    {
-      "id": "tools_db_validate_fs",
-      "label": "fs",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "fs",
-      "source_file": "tools/db/validate.js",
-      "source_location": "L3"
-    },
-    {
-      "id": "tools_db_validate_known_tables_sortrows_stablestringify_hashsnapshot",
-      "label": "{ KNOWN_TABLES, sortRows, stableStringify, hashSnapshot }",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "validate.js",
-      "file_type": "code",
-      "norm_label": "{ known_tables, sortrows, stablestringify, hashsnapshot }",
-      "source_file": "tools/db/validate.js",
-      "source_location": "L5"
-    },
-    {
-      "id": "tools_db_backup",
-      "label": "backup.js",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "backup.js",
-      "source_file": "tools/db/backup.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "tools_db_backup_crypto",
-      "label": "crypto",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "crypto",
-      "source_file": "tools/db/backup.js",
-      "source_location": "L5"
-    },
-    {
-      "id": "tools_db_backup_fs",
-      "label": "fs",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "fs",
-      "source_file": "tools/db/backup.js",
-      "source_location": "L4"
-    },
-    {
-      "id": "tools_db_backup_known_tables_sortrows_hashsnapshot",
-      "label": "{ KNOWN_TABLES, sortRows, hashSnapshot }",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "{ known_tables, sortrows, hashsnapshot }",
-      "source_file": "tools/db/backup.js",
-      "source_location": "L7"
-    },
-    {
-      "id": "tools_db_backup_pool",
-      "label": "{ Pool }",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "{ pool }",
-      "source_file": "tools/db/backup.js",
-      "source_location": "L6"
-    },
-    {
-      "id": "tools_db_restore",
-      "label": "restore.js",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "restore.js",
-      "source_file": "tools/db/restore.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "tools_db_restore_fs",
-      "label": "fs",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "fs",
-      "source_file": "tools/db/restore.js",
-      "source_location": "L5"
-    },
-    {
-      "id": "tools_db_restore_known_tables_sortrows_stablestringify",
-      "label": "{ KNOWN_TABLES, sortRows, stableStringify }",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "{ known_tables, sortrows, stablestringify }",
-      "source_file": "tools/db/restore.js",
-      "source_location": "L7"
-    },
-    {
-      "id": "tools_db_restore_pool",
-      "label": "{ Pool }",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "{ pool }",
-      "source_file": "tools/db/restore.js",
-      "source_location": "L6"
-    },
-    {
-      "id": "tools_db_tables",
-      "label": "tables.js",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "tables.js",
-      "source_file": "tools/db/tables.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "tools_db_tables_known_tables",
-      "label": "KNOWN_TABLES",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "code",
-      "norm_label": "known_tables",
-      "source_file": "tools/db/tables.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "ref_pg",
-      "label": "pg",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "backup.js",
-      "file_type": "concept",
-      "norm_label": "pg",
-      "source_file": "package.json",
-      "source_location": "L18"
-    },
-    {
       "id": "services_engagement",
       "label": "engagement.js",
       "_origin": "ast",
@@ -4177,48 +4246,37 @@
       "source_location": "L1"
     },
     {
-      "id": "tools_db_migrate_test",
-      "label": "migrate-test.js",
+      "id": "test_config_test",
+      "label": "config.test.js",
       "_origin": "ast",
-      "community": 28,
-      "community_name": "migrate-test.js",
+      "community": 27,
+      "community_name": "config/index.js",
       "file_type": "code",
-      "norm_label": "migrate-test.js",
-      "source_file": "tools/db/migrate-test.js",
+      "norm_label": "config.test.js",
+      "source_file": "test/config.test.js",
       "source_location": "L1"
     },
     {
-      "id": "tools_db_migrate_test_fs",
-      "label": "fs",
+      "id": "test_config_test_assert",
+      "label": "assert",
       "_origin": "ast",
-      "community": 28,
-      "community_name": "migrate-test.js",
+      "community": 27,
+      "community_name": "config/index.js",
       "file_type": "code",
-      "norm_label": "fs",
-      "source_file": "tools/db/migrate-test.js",
-      "source_location": "L4"
+      "norm_label": "assert",
+      "source_file": "test/config.test.js",
+      "source_location": "L8"
     },
     {
-      "id": "tools_db_migrate_test_path",
-      "label": "path",
+      "id": "test_config_test_config",
+      "label": "config",
       "_origin": "ast",
-      "community": 28,
-      "community_name": "migrate-test.js",
+      "community": 27,
+      "community_name": "config/index.js",
       "file_type": "code",
-      "norm_label": "path",
-      "source_file": "tools/db/migrate-test.js",
-      "source_location": "L5"
-    },
-    {
-      "id": "tools_db_migrate_test_pool",
-      "label": "{ Pool }",
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "migrate-test.js",
-      "file_type": "code",
-      "norm_label": "{ pool }",
-      "source_file": "tools/db/migrate-test.js",
-      "source_location": "L6"
+      "norm_label": "config",
+      "source_file": "test/config.test.js",
+      "source_location": "L9"
     },
     {
       "id": "docs_agents_issue_tracker",
@@ -4866,6 +4924,39 @@
       "source_location": "L1"
     },
     {
+      "id": "services_polls_fallbacks",
+      "label": "fallbacks.js",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "fallbacks.js",
+      "source_file": "services/polls/fallbacks.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "services_polls_fallbacks_fallback_discussion_polls",
+      "label": "FALLBACK_DISCUSSION_POLLS",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "fallback_discussion_polls",
+      "source_file": "services/polls/fallbacks.js",
+      "source_location": "L61"
+    },
+    {
+      "id": "services_polls_fallbacks_fallback_polls",
+      "label": "FALLBACK_POLLS",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "fallback_polls",
+      "source_file": "services/polls/fallbacks.js",
+      "source_location": "L2"
+    },
+    {
       "id": "services_polls_posting",
       "label": "posting.js",
       "_origin": "ast",
@@ -5075,6 +5166,105 @@
       "source_location": "L3"
     },
     {
+      "id": "test_posting_messages_test",
+      "label": "posting-messages.test.js",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "posting-messages.test.js",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "test_posting_messages_test_assert",
+      "label": "assert",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "assert",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L3"
+    },
+    {
+      "id": "test_posting_messages_test_discussionlate",
+      "label": "discussionLate",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "discussionlate",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L37"
+    },
+    {
+      "id": "test_posting_messages_test_discussionontime",
+      "label": "discussionOnTime",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "discussionontime",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L27"
+    },
+    {
+      "id": "test_posting_messages_test_fallbacklate",
+      "label": "fallbackLate",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "fallbacklate",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L53"
+    },
+    {
+      "id": "test_posting_messages_test_fallbackontime",
+      "label": "fallbackOnTime",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "fallbackontime",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L47"
+    },
+    {
+      "id": "test_posting_messages_test_getpollintromessage",
+      "label": "{ getPollIntroMessage }",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "{ getpollintromessage }",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L4"
+    },
+    {
+      "id": "test_posting_messages_test_trivialate",
+      "label": "triviaLate",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "trivialate",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L17"
+    },
+    {
+      "id": "test_posting_messages_test_triviaontime",
+      "label": "triviaOnTime",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "posting.js",
+      "file_type": "code",
+      "norm_label": "triviaontime",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L7"
+    },
+    {
       "id": "utils_dateutils",
       "label": "dateUtils.js",
       "_origin": "ast",
@@ -5084,39 +5274,6 @@
       "norm_label": "dateutils.js",
       "source_file": "utils/dateUtils.js",
       "source_location": "L1"
-    },
-    {
-      "id": "test_config_test",
-      "label": "config.test.js",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "config.test.js",
-      "source_file": "test/config.test.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "test_config_test_assert",
-      "label": "assert",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "assert",
-      "source_file": "test/config.test.js",
-      "source_location": "L8"
-    },
-    {
-      "id": "test_config_test_config",
-      "label": "config",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "config",
-      "source_file": "test/config.test.js",
-      "source_location": "L9"
     },
     {
       "id": "test_db_init_test",
@@ -5295,125 +5452,48 @@
       "source_location": "L65"
     },
     {
-      "id": "test_db_operations_test",
-      "label": "db-operations.test.js",
+      "id": "tools_db_migrate_test",
+      "label": "migrate-test.js",
       "_origin": "ast",
       "community": 5,
       "community_name": "db-init.test.js",
       "file_type": "code",
-      "norm_label": "db-operations.test.js",
-      "source_file": "test/db-operations.test.js",
+      "norm_label": "migrate-test.js",
+      "source_file": "tools/db/migrate-test.js",
       "source_location": "L1"
     },
     {
-      "id": "test_db_operations_test_assert",
-      "label": "assert",
+      "id": "tools_db_migrate_test_fs",
+      "label": "fs",
       "_origin": "ast",
       "community": 5,
       "community_name": "db-init.test.js",
       "file_type": "code",
-      "norm_label": "assert",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L9"
+      "norm_label": "fs",
+      "source_file": "tools/db/migrate-test.js",
+      "source_location": "L4"
     },
     {
-      "id": "test_db_operations_test_codecs",
-      "label": "codecs",
+      "id": "tools_db_migrate_test_path",
+      "label": "path",
       "_origin": "ast",
       "community": 5,
       "community_name": "db-init.test.js",
       "file_type": "code",
-      "norm_label": "codecs",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L10"
+      "norm_label": "path",
+      "source_file": "tools/db/migrate-test.js",
+      "source_location": "L5"
     },
     {
-      "id": "test_db_operations_test_doubleparsed",
-      "label": "doubleParsed",
+      "id": "tools_db_migrate_test_pool",
+      "label": "{ Pool }",
       "_origin": "ast",
       "community": 5,
       "community_name": "db-init.test.js",
       "file_type": "code",
-      "norm_label": "doubleparsed",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L53"
-    },
-    {
-      "id": "test_db_operations_test_knownsettingskeys",
-      "label": "knownSettingsKeys",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "knownsettingskeys",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L20"
-    },
-    {
-      "id": "test_db_operations_test_numericknowledge",
-      "label": "numericKnowledge",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "numericknowledge",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L40"
-    },
-    {
-      "id": "test_db_operations_test_parsed",
-      "label": "parsed",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "parsed",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L47"
-    },
-    {
-      "id": "test_db_operations_test_plain",
-      "label": "plain",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "plain",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L36"
-    },
-    {
-      "id": "test_db_operations_test_pollobj",
-      "label": "pollObj",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "pollobj",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L45"
-    },
-    {
-      "id": "test_db_operations_test_requiredsettings",
-      "label": "requiredSettings",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "requiredsettings",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L22"
-    },
-    {
-      "id": "test_db_operations_test_serialized",
-      "label": "serialized",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "db-init.test.js",
-      "file_type": "code",
-      "norm_label": "serialized",
-      "source_file": "test/db-operations.test.js",
-      "source_location": "L46"
+      "norm_label": "{ pool }",
+      "source_file": "tools/db/migrate-test.js",
+      "source_location": "L6"
     },
     {
       "id": "agents",
@@ -6500,186 +6580,6 @@
       "source_url": null
     },
     {
-      "id": "assets_logo_app_icon",
-      "label": "Rounded Square App Icon Frame",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 19,
-      "community_name": "Discord AI Poll Bot",
-      "contributor": null,
-      "file_type": "concept",
-      "norm_label": "rounded square app icon frame",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_neon_gradient",
-      "label": "Neon Purple-Cyan Gradient",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 19,
-      "community_name": "Discord AI Poll Bot",
-      "contributor": null,
-      "file_type": "concept",
-      "norm_label": "neon purple-cyan gradient",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_neural_network_graph",
-      "label": "Glowing Neural Network Graph",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 19,
-      "community_name": "Discord AI Poll Bot",
-      "contributor": null,
-      "file_type": "concept",
-      "norm_label": "glowing neural network graph",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_neural_brain_icon",
-      "label": "Neon Neural Brain Logo",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 19,
-      "community_name": "Discord AI Poll Bot",
-      "contributor": null,
-      "file_type": "image",
-      "norm_label": "neon neural brain logo",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_magenta_cyan_neon_palette",
-      "label": "Magenta to Cyan Neon Gradient Palette",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 26,
-      "community_name": "Neural Wireframe Brain Glyph",
-      "contributor": null,
-      "file_type": "concept",
-      "norm_label": "magenta to cyan neon gradient palette",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo",
-      "label": "Poll Bot Logo",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 26,
-      "community_name": "Neural Wireframe Brain Glyph",
-      "contributor": null,
-      "file_type": "image",
-      "norm_label": "poll bot logo",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_cerebellum_brainstem_detail",
-      "label": "Cerebellum and Brain Stem Detail",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 26,
-      "community_name": "Neural Wireframe Brain Glyph",
-      "contributor": null,
-      "file_type": "image",
-      "norm_label": "cerebellum and brain stem detail",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_connected_node_glyph",
-      "label": "Connected Node Dots and Edges Mesh",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 26,
-      "community_name": "Neural Wireframe Brain Glyph",
-      "contributor": null,
-      "file_type": "image",
-      "norm_label": "connected node dots and edges mesh",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_dark_navy_backdrop",
-      "label": "Dark Navy Backdrop",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 26,
-      "community_name": "Neural Wireframe Brain Glyph",
-      "contributor": null,
-      "file_type": "image",
-      "norm_label": "dark navy backdrop",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_neural_wireframe_brain",
-      "label": "Neural Wireframe Brain Glyph",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 26,
-      "community_name": "Neural Wireframe Brain Glyph",
-      "contributor": null,
-      "file_type": "image",
-      "norm_label": "neural wireframe brain glyph",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_rounded_app_icon_tile",
-      "label": "Rounded Square App Icon Tile",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 26,
-      "community_name": "Neural Wireframe Brain Glyph",
-      "contributor": null,
-      "file_type": "image",
-      "norm_label": "rounded square app icon tile",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
-      "id": "assets_logo_collective_intelligence_concept",
-      "label": "Collective Intelligence Design Intent",
-      "_origin": "semantic",
-      "author": null,
-      "captured_at": null,
-      "community": 26,
-      "community_name": "Neural Wireframe Brain Glyph",
-      "contributor": null,
-      "file_type": "rationale",
-      "norm_label": "collective intelligence design intent",
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "source_url": null
-    },
-    {
       "id": "config_index_openrouter_api_key",
       "label": "config_index_openrouter_api_key",
       "_origin": "semantic",
@@ -6712,6 +6612,30 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "config_index_discord_bot_token",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_crypto",
+      "label": "ref_crypto",
+      "_origin": "semantic",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_crypto",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "ref_fs",
+      "label": "ref_fs",
+      "_origin": "semantic",
+      "community": 11,
+      "community_name": "backup.test.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_fs",
       "source_file": "",
       "type": "external"
     },
@@ -6800,38 +6724,14 @@
       "type": "external"
     },
     {
-      "id": "ref_crypto",
-      "label": "ref_crypto",
+      "id": "ref_node_assert",
+      "label": "ref_node_assert",
       "_origin": "semantic",
-      "community": 20,
-      "community_name": "validate.js",
+      "community": 27,
+      "community_name": "config/index.js",
       "external": true,
       "file_type": "concept",
-      "norm_label": "ref_crypto",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_fs",
-      "label": "ref_fs",
-      "_origin": "semantic",
-      "community": 28,
-      "community_name": "migrate-test.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_fs",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_path",
-      "label": "ref_path",
-      "_origin": "semantic",
-      "community": 28,
-      "community_name": "migrate-test.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_path",
+      "norm_label": "ref_node_assert",
       "source_file": "",
       "type": "external"
     },
@@ -6860,14 +6760,14 @@
       "type": "external"
     },
     {
-      "id": "ref_node_assert",
-      "label": "ref_node_assert",
+      "id": "ref_path",
+      "label": "ref_path",
       "_origin": "semantic",
       "community": 5,
       "community_name": "db-init.test.js",
       "external": true,
       "file_type": "concept",
-      "norm_label": "ref_node_assert",
+      "norm_label": "ref_path",
       "source_file": "",
       "type": "external"
     }
@@ -7967,6 +7867,18 @@
     },
     {
       "source": "services_polls_posting_performdailypost",
+      "target": "services_polls_posting_getpollintromessage",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "services/polls/posting.js",
+      "source_location": "L115",
+      "weight": 1.0
+    },
+    {
+      "source": "services_polls_posting_performdailypost",
       "target": "utils_dateutils_getnydatestring",
       "relation": "calls",
       "_origin": "ast",
@@ -7986,7 +7898,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "services/polls/posting.js",
-      "source_location": "L220",
+      "source_location": "L216",
       "weight": 1.0
     },
     {
@@ -7998,7 +7910,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "services/polls/posting.js",
-      "source_location": "L226",
+      "source_location": "L222",
       "weight": 1.0
     },
     {
@@ -8010,7 +7922,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "services/polls/posting.js",
-      "source_location": "L144",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -8022,7 +7934,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "services/polls/posting.js",
-      "source_location": "L145",
+      "source_location": "L141",
       "weight": 1.0
     },
     {
@@ -8034,7 +7946,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "services/polls/posting.js",
-      "source_location": "L148",
+      "source_location": "L144",
       "weight": 1.0
     },
     {
@@ -9727,6 +9639,18 @@
       "context": "import",
       "source_file": "test/codecs.test.js",
       "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "services_polls_posting_getpollintromessage",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L4",
       "weight": 1.0
     },
     {
@@ -11946,6 +11870,30 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "test/ExpiringMap.test.js",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "ref_node_assert",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "services_polls_posting",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "test/posting-messages.test.js",
       "source_location": "L4",
       "weight": 1.0
     },
@@ -15535,6 +15483,105 @@
       "weight": 1.0
     },
     {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_trivialate",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_discussionontime",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L27",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_assert",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_discussionlate",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L37",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_getpollintromessage",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_fallbackontime",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L47",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_fallbacklate",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L53",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_relabelkind",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L58",
+      "weight": 1.0
+    },
+    {
+      "source": "test_posting_messages_test",
+      "target": "test_posting_messages_test_triviaontime",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/posting-messages.test.js",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
       "source": "test_startup_test",
       "target": "test_startup_test_testdiscordgateway",
       "relation": "contains",
@@ -17064,7 +17111,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "services/polls/posting.js",
-      "source_location": "L246",
+      "source_location": "L264",
       "weight": 1.0
     },
     {
@@ -17076,7 +17123,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "services/polls/posting.js",
-      "source_location": "L247",
+      "source_location": "L265",
       "weight": 1.0
     },
     {
@@ -17088,7 +17135,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "services/polls/posting.js",
-      "source_location": "L248",
+      "source_location": "L266",
       "weight": 1.0
     },
     {
@@ -17100,7 +17147,19 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "services/polls/posting.js",
-      "source_location": "L249",
+      "source_location": "L267",
+      "weight": 1.0
+    },
+    {
+      "source": "services_polls_posting",
+      "target": "services_polls_posting_getpollintromessage",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "collection",
+      "source_file": "services/polls/posting.js",
+      "source_location": "L268",
       "weight": 1.0
     },
     {
@@ -17312,94 +17371,6 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "assets/discord-bot-eg.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo",
-      "target": "assets_logo_dark_navy_backdrop",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo",
-      "target": "assets_logo_neural_wireframe_brain",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo",
-      "target": "assets_logo_rounded_app_icon_tile",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_connected_node_glyph",
-      "target": "assets_logo_magenta_cyan_neon_palette",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_neural_wireframe_brain",
-      "target": "assets_logo_cerebellum_brainstem_detail",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_neural_wireframe_brain",
-      "target": "assets_logo_connected_node_glyph",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_neural_wireframe_brain",
-      "target": "assets_logo_magenta_cyan_neon_palette",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_rounded_app_icon_tile",
-      "target": "assets_logo_dark_navy_backdrop",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
       "source_location": null,
       "weight": 1.0
     },
@@ -17756,39 +17727,6 @@
       "weight": 1.0
     },
     {
-      "source": "assets_logo_app_icon",
-      "target": "assets_logo_neural_brain_icon",
-      "relation": "references",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_neon_gradient",
-      "target": "assets_logo_app_icon",
-      "relation": "references",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_neural_network_graph",
-      "target": "assets_logo_neural_brain_icon",
-      "relation": "references",
-      "_origin": "semantic",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
       "source": "assets_discord_bot_eg_daily_poll_command",
       "target": "assets_discord_bot_eg_ai_tech_trivia_domain",
       "relation": "conceptually_related_to",
@@ -17829,50 +17767,6 @@
       "confidence": "INFERRED",
       "confidence_score": 0.75,
       "source_file": "assets/discord-bot-eg.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_neural_brain_icon",
-      "target": "assets_discord_bot_eg_owgt_bot",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "INFERRED",
-      "confidence_score": 0.75,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_neural_brain_icon",
-      "target": "readme_discord_ai_poll_bot",
-      "relation": "conceptually_related_to",
-      "_origin": "semantic",
-      "confidence": "INFERRED",
-      "confidence_score": 0.75,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_collective_intelligence_concept",
-      "target": "assets_logo_connected_node_glyph",
-      "relation": "rationale_for",
-      "_origin": "semantic",
-      "confidence": "INFERRED",
-      "confidence_score": 0.75,
-      "source_file": "assets/logo.png",
-      "source_location": null,
-      "weight": 1.0
-    },
-    {
-      "source": "assets_logo_collective_intelligence_concept",
-      "target": "assets_logo_neural_wireframe_brain",
-      "relation": "rationale_for",
-      "_origin": "semantic",
-      "confidence": "INFERRED",
-      "confidence_score": 0.75,
-      "source_file": "assets/logo.png",
       "source_location": null,
       "weight": 1.0
     },
@@ -17989,21 +17883,6 @@
   ],
   "hyperedges": [
     {
-      "id": "logo_brand_mark_composition",
-      "label": "Logo Brand Mark Composition",
-      "nodes": [
-        "assets_logo",
-        "assets_logo_neural_wireframe_brain",
-        "assets_logo_connected_node_glyph",
-        "assets_logo_rounded_app_icon_tile",
-        "assets_logo_magenta_cyan_neon_palette"
-      ],
-      "relation": "form",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "assets/logo.png"
-    },
-    {
       "id": "poll_answering_interaction",
       "label": "Poll Answering Interaction",
       "nodes": [
@@ -18035,34 +17914,6 @@
       "source_file": "assets/discord-bot-eg.png"
     },
     {
-      "id": "logo_neon_cyberpunk_visual_language",
-      "label": "Neon Cyberpunk Visual Language",
-      "nodes": [
-        "assets_logo_magenta_cyan_neon_palette",
-        "assets_logo_neural_wireframe_brain",
-        "assets_logo_connected_node_glyph",
-        "assets_logo_dark_navy_backdrop"
-      ],
-      "relation": "form",
-      "confidence": "INFERRED",
-      "confidence_score": 0.75,
-      "source_file": "assets/logo.png"
-    },
-    {
-      "id": "bot_visual_branding",
-      "label": "Bot Visual Branding",
-      "nodes": [
-        "assets_logo_neural_brain_icon",
-        "assets_logo_app_icon",
-        "assets_logo_neon_gradient",
-        "assets_discord_bot_eg_owgt_bot"
-      ],
-      "relation": "form",
-      "confidence": "INFERRED",
-      "confidence_score": 0.85,
-      "source_file": "assets/logo.png"
-    },
-    {
       "id": "single_select_poll_mechanics",
       "label": "Single-Select Poll Mechanics",
       "nodes": [
@@ -18078,5 +17929,5 @@
       "source_file": "assets/discord-bot-eg.png"
     }
   ],
-  "built_at_commit": "98368f8fc17a04d28c74f51cb55f8e3155670be0"
+  "built_at_commit": "1a55a63abac634d78e0fee5293fa926583385168"
 }

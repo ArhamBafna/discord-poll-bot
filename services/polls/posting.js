@@ -107,16 +107,12 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
         
         // Deep clone to not mess up global shared references across channels
         newPollData = JSON.parse(JSON.stringify(newPollData));
-        newPollData.kind = isCatchUp ? 'catch-up' : newPollData.kind;
+        if (isCatchUp && newPollData.kind !== 'fallback') {
+            newPollData.kind = 'catch-up';
+        }
 
         if (newPollData) {
-            let pollIntroMessage;
-            if (newPollData.type === 'discussion') {
-                pollIntroMessage = isCatchUp ? "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts! Also it's a late post cuz I missed the set time.)" : "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts!)";
-            } else {
-                pollIntroMessage = isCatchUp ? "@everyone **Today's AI Poll!** 🧠 (It's a late post cuz I missed the set time.)" : "@everyone **Today's AI Poll!** 🧠";
-            }
-            if (newPollData.kind === 'fallback') pollIntroMessage += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
+            const pollIntroMessage = getPollIntroMessage(newPollData, isCatchUp);
 
             const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
             newPollData.pollMessageId = newPollMessage.id;
@@ -242,11 +238,34 @@ INSTRUCTIONS:
         await dbOperations.saveStateToDB(guildId, 'lastWeeklyLeaderboard', state.leaderboard);
     } catch (error) { console.error(`[LEADERBOARD][Channel: ${channelId}] Failed to post weekly summary:`, error); }
 }
+function getPollIntroMessage(pollDataOrType, isCatchUp = false, kind = null) {
+    const type = typeof pollDataOrType === 'object' && pollDataOrType ? pollDataOrType.type : pollDataOrType;
+    const pollKind = typeof pollDataOrType === 'object' && pollDataOrType ? pollDataOrType.kind : kind;
+
+    let message;
+    if (type === 'discussion') {
+        message = isCatchUp
+            ? "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts! Also it's a late post cuz I missed the set time.)"
+            : "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts!)";
+    } else {
+        message = isCatchUp
+            ? "@everyone **Today's AI Poll!** 🧠 (It's a late post cuz I missed the set time.)"
+            : "@everyone **Today's AI Poll!** 🧠";
+    }
+
+    if (pollKind === 'fallback') {
+        message += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
+    }
+
+    return message;
+}
+
 module.exports = {
     performDailyPost,
     postWeeklySummary,
     runCentralizedDailyPost,
-    getOrGenerateDailyPoll
+    getOrGenerateDailyPoll,
+    getPollIntroMessage
 };
 
 
