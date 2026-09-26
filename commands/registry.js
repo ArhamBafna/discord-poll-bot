@@ -5,16 +5,10 @@ const { handleLeaderboard } = require('./user/leaderboard');
 const { handleRank } = require('./user/rank');
 const { handleHelp } = require('./user/help');
 const { handlePoints } = require('./admin/points');
-const { handleAsknow } = require('./admin/asknow');
-const { handleRelinkpoll } = require('./admin/relinkpoll');
-const { handleResolve } = require('./admin/resolve');
 const { handleKnowledge } = require('./admin/knowledge');
-const { handleSetCC } = require('./admin/setcc');
-const { handleSetWelcome } = require('./admin/setwelcome');
-const { handleSetControlRole } = require('./admin/setcontrolrole');
 const { handleMilestones } = require('./admin/milestones');
-const { handleSettings } = require('./admin/settings');
-const { handleSetInvitePoints } = require('./admin/setinvitepoints');
+const { handleConfig } = require('./admin/config');
+const { handlePoll } = require('./admin/poll');
 
 const registry = [
     {
@@ -49,26 +43,19 @@ const registry = [
         adminOnly: true
     },
     {
-        builder: new SlashCommandBuilder().setName('asknow').setDescription('Starts an on-demand trivia poll (does not award points).')
-            .addStringOption(option => option.setName('topic').setDescription('An optional topic for the poll.')),
-        handler: handleAsknow,
-        adminOnly: true
-    },
-    {
-        builder: new SlashCommandBuilder().setName('relinkpoll').setDescription("Fixes the bot's memory to track a poll that was deleted or missed.")
-            .addStringOption(option => option.setName('message_id').setDescription('The ID of the poll message.').setRequired(true))
-            .addIntegerOption(option => option.setName('correct_option').setDescription('The number of the correct option (e.g., 3 for C).').setRequired(true).setMinValue(1).setMaxValue(10)),
-        handler: handleRelinkpoll,
-        adminOnly: true
-    },
-    {
-        builder: new SlashCommandBuilder().setName('resolve').setDescription('Resolve either an on-demand or daily poll.')
-            .addStringOption(option => option.setName('poll').setDescription('Which poll flow to resolve.').setRequired(true)
-                .addChoices(
-                    { name: 'On-demand', value: 'on-demand' },
-                    { name: 'Daily', value: 'daily' }
-                )),
-        handler: handleResolve,
+        builder: new SlashCommandBuilder().setName('poll').setDescription('Manage on-demand and daily polls.')
+            .addSubcommand(sub => sub.setName('ask').setDescription('Starts an on-demand trivia poll (does not award points).')
+                .addStringOption(option => option.setName('topic').setDescription('An optional topic for the poll.')))
+            .addSubcommand(sub => sub.setName('resolve').setDescription('Resolve either an on-demand or daily poll.')
+                .addStringOption(option => option.setName('poll').setDescription('Which poll flow to resolve.').setRequired(true)
+                    .addChoices(
+                        { name: 'On-demand', value: 'on-demand' },
+                        { name: 'Daily', value: 'daily' }
+                    )))
+            .addSubcommand(sub => sub.setName('relink').setDescription("Fixes the bot's memory to track a poll that was deleted or missed.")
+                .addStringOption(option => option.setName('message_id').setDescription('The ID of the poll message.').setRequired(true))
+                .addIntegerOption(option => option.setName('correct_option').setDescription('The number of the correct option (e.g., 3 for C).').setRequired(true).setMinValue(1).setMaxValue(10))),
+        handler: handlePoll,
         adminOnly: true
     },
     {
@@ -82,27 +69,17 @@ const registry = [
         adminOnly: true
     },
     {
-        builder: new SlashCommandBuilder().setName('setcc').setDescription("Sets the user to be CC'd in welcome messages.")
-            .addUserOption(option => option.setName('user').setDescription('The user to CC.').setRequired(true)),
-        handler: handleSetCC,
-        adminOnly: true
-    },
-    {
-        builder: new SlashCommandBuilder().setName('setwelcome').setDescription('Sets the welcome message template. Use {user}, {inviter}, {cc}, and {points_msg}.')
-            .addStringOption(option => option.setName('template').setDescription('The message template.').setRequired(true)),
-        handler: handleSetWelcome,
-        adminOnly: true
-    },
-    {
-        builder: new SlashCommandBuilder().setName('setcontrolrole').setDescription('Sets the role allowed to run administrative commands.')
-            .addRoleOption(option => option.setName('role').setDescription('The administrative role.').setRequired(true)),
-        handler: handleSetControlRole,
-        adminOnly: true
-    },
-    {
-        builder: new SlashCommandBuilder().setName('invitepoints').setDescription('Sets how many points are awarded per successful invite.')
-            .addIntegerOption(option => option.setName('points').setDescription('Points awarded per invite.').setRequired(true).setMinValue(0).setMaxValue(100)),
-        handler: handleSetInvitePoints,
+        builder: new SlashCommandBuilder().setName('config').setDescription('Manage bot configuration settings.')
+            .addSubcommand(sub => sub.setName('view').setDescription('Displays the current server configuration overview.'))
+            .addSubcommand(sub => sub.setName('welcome').setDescription('Sets the welcome message template. Use {user}, {inviter}, {cc}, and {points_msg}.')
+                .addStringOption(option => option.setName('template').setDescription('The message template.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('cc').setDescription("Sets the user to be CC'd in welcome messages.")
+                .addUserOption(option => option.setName('user').setDescription('The user to CC.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('role').setDescription('Sets the role allowed to run administrative commands.')
+                .addRoleOption(option => option.setName('role').setDescription('The administrative role.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('invite-points').setDescription('Sets how many points are awarded per successful invite.')
+                .addIntegerOption(option => option.setName('points').setDescription('Points awarded per invite.').setRequired(true).setMinValue(0).setMaxValue(100))),
+        handler: handleConfig,
         adminOnly: true
     },
     {
@@ -113,11 +90,6 @@ const registry = [
             .addSubcommand(sub => sub.setName('remove').setDescription('Removes a role milestone.')
                 .addIntegerOption(option => option.setName('points').setDescription('The points count to remove.').setRequired(true).setMinValue(1))),
         handler: handleMilestones,
-        adminOnly: true
-    },
-    {
-        builder: new SlashCommandBuilder().setName('settings').setDescription('Displays the current bot configuration.'),
-        handler: handleSettings,
         adminOnly: true
     }
 ];
