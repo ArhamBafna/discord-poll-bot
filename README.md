@@ -48,18 +48,27 @@ How to set up:
 ## Commands
 
 **Everyone can use:**
-- '/leaderboard' - Top 10 point leaders
-- '/rank [@user]' - Yours/ someone else's rank
-- '/help' - All available commands
+- `/leaderboard` - Displays the top 10 point leaders on the server.
+- `/rank [@user]` - Shows your rank or a mentioned user's rank (defaults to you).
+- `/help` - Shows the help message with all available commands.
 
-**Only admins can use:** (need 'bot-control' role)
-- '/settings' - Current bot config
-- '/points add/remove/set @user <amount>' - add/subtract/set a user's points
-- '/asknow [topic]' - generate a trivia poll right now (optionally, on a specific topic). No points awarded
-- '/milestones add <points> <@role>' - At certain points, give a milestone role (beta)
-- '/invitepoints <amount>' - Points to give a member upon inviting someone
-- '/knowledge update/list/delete <topic>' - Update the knowledge base
-- '/setwelcome <template>' - Custom message to welcome a new user.
+**Only admins can use:** (requires the configured control role, default `bot-control`, or bot creator)
+- `/settings` - Displays the current bot configuration (channels, roles, invite points, etc.).
+- `/asknow [topic]` - Starts an on-demand trivia poll immediately (optionally with a custom topic; does not award points).
+- `/resolve <poll>` - Manually resolves either an `on-demand` or `daily` poll.
+- `/relinkpoll <message_id> <correct_option>` - Reconnects the bot's memory to track a poll that was missed or deleted (message ID and option number 1–10).
+- `/points add <@user> <amount> [message]` - Adds points to a user with an optional reason note.
+- `/points remove <@user> <amount>` - Removes points from a user.
+- `/points set <@user> <amount>` - Sets a user's points to an exact score.
+- `/milestones add <points> <@role>` - Automatically awards a role when a user reaches a point milestone.
+- `/milestones remove <points>` - Removes a role milestone for a specific point threshold.
+- `/invitepoints <points>` - Sets how many points are awarded per successful server invite (0–100).
+- `/knowledge update <topic>` - Adds or updates a topic in the bot's knowledge base via an interactive popup.
+- `/knowledge list` - Lists all topics currently saved in the knowledge base.
+- `/knowledge delete <topic>` - Deletes a topic from the knowledge base.
+- `/setwelcome <template>` - Sets the welcome message template for new members. Supports `{user}`, `{inviter}`, `{cc}`, and `{points_msg}`.
+- `/setcc <@user>` - Sets which user to CC in new member welcome messages.
+- `/setcontrolrole <@role>` - Sets which role has permission to run administrative commands.
 
 ## Other
 
