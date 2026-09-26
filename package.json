@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "test": "node --test test/*.test.js",
     "db:backup": "node tools/db/backup.js",
     "db:restore": "node tools/db/restore.js",
     "db:validate": "node tools/db/validate.js",

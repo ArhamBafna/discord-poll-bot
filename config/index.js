@@ -18,7 +18,8 @@ function applyNetworkDefaults() {
 }
 
 function validateConfig() {
-    if (!GEMINI_API_KEY || !DISCORD_BOT_TOKEN || !TARGET_CHANNEL_IDS.length || !DATABASE_URL) {
+    const channelIds = process.env.TARGET_CHANNEL_IDS ? process.env.TARGET_CHANNEL_IDS.split(',').map(id => id.trim()).filter(Boolean) : [];
+    if (!process.env.API_KEY || !process.env.DISCORD_BOT_TOKEN || !channelIds.length || !process.env.DATABASE_URL) {
         throw new Error('Missing env: set API_KEY, DISCORD_BOT_TOKEN, DATABASE_URL, and TARGET_CHANNEL_IDS (comma-separated list).');
     }
 }
