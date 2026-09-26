@@ -125,4 +125,9 @@ async function checkAndPostEngagement(discordClient) {
     }
 }
 
-module.exports = { checkAndPostEngagement };
+module.exports = {
+    checkAndPostEngagement,
+    USER_COMMANDS,
+    ADMIN_COMMANDS,
+    COMMAND_DESCRIPTIONS
+};

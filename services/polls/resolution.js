@@ -76,7 +76,7 @@ async function resolveLastPoll(channel, discordClient) {
             return true;
         } catch (error) {
             let errorMessage = `[RESOLVE][${guildId}][#${channel.name}] FAILED: Could not process previous poll (ID: ${pollId}).`;
-            if (error.code === 10008) errorMessage += ` REASON: Message was deleted. Use /relinkpoll.`;
+            if (error.code === 10008) errorMessage += ` REASON: Message was deleted. Use /poll relink.`;
             else if (error.code === 50013 || error.code === 50001) errorMessage += ` REASON: Missing Permissions.`;
             else errorMessage += ` REASON: Unexpected error.`;
             console.error(errorMessage, error.code !== 10008 ? error : '');
