@@ -4,11 +4,11 @@
 
 ## Key Concepts
 
-- **Current Live Production Status** (4 connections) — `current-prod-status.md`
-- **current-prod-status.md** (1 connections) — `current-prod-status.md`
-- **Archive / Legacy: HeavenCloud Notes & Past Fixes** (1 connections) — `current-prod-status.md`
-- **Current Live Production Status** (1 connections) — `current-prod-status.md`
-- **Server Management Quick Reference** (1 connections) — `current-prod-status.md`
+- **Current Live Production Status** (4 connections) — `docs/current-prod-status.md`
+- **current-prod-status.md** (1 connections) — `docs/current-prod-status.md`
+- **Archive / Legacy: HeavenCloud Notes & Past Fixes** (1 connections) — `docs/current-prod-status.md`
+- **Current Live Production Status** (1 connections) — `docs/current-prod-status.md`
+- **Server Management Quick Reference** (1 connections) — `docs/current-prod-status.md`
 
 ## Relationships
 
@@ -16,7 +16,7 @@
 
 ## Source Files
 
-- `current-prod-status.md`
+- `docs/current-prod-status.md`
 
 ## Audit Trail
 

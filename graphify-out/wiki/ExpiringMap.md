@@ -25,7 +25,7 @@
 ## Relationships
 
 - [Message Handling & AI Sessions](Message_Handling_&_AI_Sessions.md) (1 shared connections)
-- [Config & DB Connection](Config_&_DB_Connection.md) (1 shared connections)
+- [db-init.test.js](db-init.test.js.md) (1 shared connections)
 
 ## Source Files
 

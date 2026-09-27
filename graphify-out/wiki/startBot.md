@@ -2,7 +2,7 @@
 
 > God node · 9 connections · `utils/startup.js`
 
-**Community:** [Bot Startup & Config Validation](Bot_Startup_&_Config_Validation.md)
+**Community:** [startup.js](startup.js.md)
 
 ## Connections by Relation
 
@@ -15,11 +15,11 @@
 - loginWithTimeout() `EXTRACTED`
 
 ### imports
-- index.js `EXTRACTED`
+- [index.js](index.js.md) `EXTRACTED`
 - startup.test.js `EXTRACTED`
 
 ### indirect_call
-- startup.js `INFERRED`
+- [startup.js](startup.js.md) `INFERRED`
 
 ---
 

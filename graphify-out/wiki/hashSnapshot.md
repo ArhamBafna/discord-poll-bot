@@ -2,7 +2,7 @@
 
 > God node · 11 connections · `tools/db/tables.js`
 
-**Community:** [DB Backup, Restore & Tables](DB_Backup,_Restore_&_Tables.md)
+**Community:** [validate.js](validate.js.md)
 
 ## Connections by Relation
 
@@ -15,10 +15,10 @@
 - runValidate() `EXTRACTED`
 
 ### imports
-- backup.test.js `EXTRACTED`
-- tables.test.js `EXTRACTED`
-- backup.js `EXTRACTED`
-- validate.js `EXTRACTED`
+- [backup.test.js](backup.test.js.md) `EXTRACTED`
+- [tables.test.js](tables.test.js.md) `EXTRACTED`
+- [backup.js](backup.js.md) `EXTRACTED`
+- [validate.js](validate.js.md) `EXTRACTED`
 
 ### indirect_call
 - tables.js `INFERRED`

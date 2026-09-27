@@ -2,7 +2,7 @@
 
 > God node · 13 connections · `utils/logger.js`
 
-**Community:** [Logging & Service Initialization](Logging_&_Service_Initialization.md)
+**Community:** [startup.js](startup.js.md)
 
 ## Connections by Relation
 
@@ -15,10 +15,10 @@
 - main() `EXTRACTED`
 
 ### imports
-- ready.js `EXTRACTED`
-- index.js `EXTRACTED`
-- startup.js `EXTRACTED`
-- ai/client.js `EXTRACTED`
+- [ready.js](ready.js.md) `EXTRACTED`
+- [index.js](index.js.md) `EXTRACTED`
+- [startup.js](startup.js.md) `EXTRACTED`
+- [ai/client.js](ai-client.js.md) `EXTRACTED`
 - initialization.js `EXTRACTED`
 
 ### indirect_call

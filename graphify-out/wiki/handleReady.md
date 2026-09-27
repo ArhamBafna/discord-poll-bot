@@ -2,7 +2,7 @@
 
 > God node · 10 connections · `handlers/ready.js`
 
-**Community:** [Logging & Service Initialization](Logging_&_Service_Initialization.md)
+**Community:** [ready.js](ready.js.md)
 
 ## Connections by Relation
 
@@ -17,10 +17,10 @@
 - checkAndPostEngagement() `EXTRACTED`
 
 ### imports
-- index.js `EXTRACTED`
+- [index.js](index.js.md) `EXTRACTED`
 
 ### indirect_call
-- ready.js `INFERRED`
+- [ready.js](ready.js.md) `INFERRED`
 
 ---
 

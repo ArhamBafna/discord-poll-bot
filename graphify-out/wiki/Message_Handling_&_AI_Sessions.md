@@ -32,12 +32,11 @@
 
 ## Relationships
 
-- [AI Poll & Text Generation](AI_Poll_&_Text_Generation.md) (5 shared connections)
-- [Bot Entry Point & Clients](Bot_Entry_Point_&_Clients.md) (2 shared connections)
-- [Interaction Handling & Help](Interaction_Handling_&_Help.md) (1 shared connections)
-- [State Manager & Knowledge Commands](State_Manager_&_Knowledge_Commands.md) (1 shared connections)
-- [Settings Codec Serialization](Settings_Codec_Serialization.md) (1 shared connections)
-- [Config & DB Connection](Config_&_DB_Connection.md) (1 shared connections)
+- [generation.js](generation.js.md) (5 shared connections)
+- [index.js](index.js.md) (2 shared connections)
+- [manager.js](manager.js.md) (2 shared connections)
+- [operations.js](operations.js.md) (1 shared connections)
+- [config/index.js](config-index.js.md) (1 shared connections)
 - [ExpiringMap](ExpiringMap.md) (1 shared connections)
 
 ## Source Files

@@ -17,7 +17,7 @@
 - isNoReplySignal() `EXTRACTED`
 
 ### imports
-- index.js `EXTRACTED`
+- [index.js](index.js.md) `EXTRACTED`
 
 ### indirect_call
 - message.js `INFERRED`

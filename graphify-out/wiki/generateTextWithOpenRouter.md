@@ -2,7 +2,7 @@
 
 > God node · 10 connections · `services/ai/openrouter.js`
 
-**Community:** [AI Poll & Text Generation](AI_Poll_&_Text_Generation.md)
+**Community:** [generation.js](generation.js.md)
 
 ## Connections by Relation
 
@@ -16,7 +16,7 @@
 - sleep() `EXTRACTED`
 
 ### imports
-- generation.js `EXTRACTED`
+- [generation.js](generation.js.md) `EXTRACTED`
 - serviceHelpers.js `EXTRACTED`
 
 ### indirect_call
