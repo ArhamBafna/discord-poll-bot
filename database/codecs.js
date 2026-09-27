@@ -45,6 +45,9 @@ const CODECS = {
     ccUser: { default: null, parse: (raw) => parseText(raw, null), serialize: serializeText },
     welcomeTemplate: { default: null, parse: (raw) => parseText(raw, null), serialize: serializeText },
     controlRole: { default: null, parse: (raw) => parseText(raw, null), serialize: serializeText },
+    // One object holding both the mode and the role id, so the two can never disagree after
+    // a partial write. A null default means "never configured", which resolves to no ping.
+    pollMention: { default: null, parse: (raw) => parseJson(raw, null), serialize: serializeJson },
     lastEngagementPostGeneral: { default: null, parse: (raw) => parseText(raw, null), serialize: serializeText },
     lastEngagementPostTeam: { default: null, parse: (raw) => parseText(raw, null), serialize: serializeText },
     inviteRewardPoints: { default: 1, parse: parseInviteRewardPoints, serialize: serializeInviteRewardPoints }

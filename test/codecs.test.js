@@ -47,4 +47,15 @@ assert.strictEqual(parseStoredValue('controlRole', null), null, 'null controlRol
 // serializeStoredValue on a knowledge key returns a string
 assert.strictEqual(typeof serializeStoredValue('mission', 'hello'), 'string', 'knowledge serializes to string');
 
+// pollMention is a settings key, not a knowledge topic. This matters beyond tidiness:
+// loadStateForGuild routes any key missing from the registry into the knowledge base,
+// so an unregistered pollMention would be fed to the AI as a "topic" on every load.
+assert.strictEqual(isSettingsKey('pollMention'), true, 'pollMention is registered as a settings key');
+const MENTION = { mode: 'role', roleId: '1234567890' };
+const mentionRoundTrip = parseStoredValue('pollMention', serializeStoredValue('pollMention', MENTION));
+assert.deepStrictEqual(mentionRoundTrip, MENTION, 'pollMention round-trips to an identical object');
+assert.strictEqual(typeof mentionRoundTrip, 'object', 'pollMention parses to an object, not a string');
+assert.strictEqual(parseStoredValue('pollMention', null), null, 'unset pollMention falls back to null, meaning silent');
+assert.strictEqual(parseStoredValue('pollMention', 'corrupt-not-json'), null, 'unparseable pollMention falls back to silent');
+
 console.log('codecs tests passed');

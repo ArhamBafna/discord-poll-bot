@@ -10,6 +10,7 @@ const serviceHelpers = require('../../lib/serviceHelpers');
 const { generateTextWithRetries } = require('../ai/generation');
 const pollResolution = require('./resolution');
 const { getNYDateString, getNYWeekString } = require('../../utils/dateUtils');
+const { applyPollMention, resolvePollMention } = require('../../lib/mentions');
 const { TARGET_CHANNEL_IDS } = require('../../config');
 
 // State management for posting lock
@@ -146,7 +147,7 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
             newPollData.kind = 'catch-up';
         }
 
-        const pollIntroMessage = getPollIntroMessage(newPollData, isCatchUp);
+        const pollIntroMessage = getPollIntroMessage(newPollData, isCatchUp, resolvePollMention(state, channel));
 
         const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
         newPollData.pollMessageId = newPollMessage.id;
@@ -268,32 +269,40 @@ INSTRUCTIONS:
             summaryEmbed.addFields({ name: 'Role Milestones', value: milestoneStr });
         }
 
-        await channel.send({ embeds: [summaryEmbed] });
+        // The summary is an embed with no message body, so it has nowhere to carry a ping
+        // until one is configured. Only add a text line when there is actually a mention.
+        const summaryMention = resolvePollMention(state, channel);
+        const summaryPayload = { embeds: [summaryEmbed] };
+        if (summaryMention) summaryPayload.content = applyPollMention('**Weekly Leaderboard 🏆**', summaryMention);
+        await channel.send(summaryPayload);
 
         // Save current leaderboard as previous for next week
         await dbOperations.saveStateToDB(guildId, 'lastWeeklyLeaderboard', state.leaderboard);
     } catch (error) { console.error(`[LEADERBOARD][Channel: ${channelId}] Failed to post weekly summary:`, error); }
 }
-function getPollIntroMessage(pollDataOrType, isCatchUp = false, kind = null) {
+// The `kind` argument is only consulted when a bare poll type string is passed instead of a
+// poll object, which no caller does; `mention` sits ahead of it so callers do not have to
+// pass a placeholder.
+function getPollIntroMessage(pollDataOrType, isCatchUp = false, mention = '', kind = null) {
     const type = typeof pollDataOrType === 'object' && pollDataOrType ? pollDataOrType.type : pollDataOrType;
     const pollKind = typeof pollDataOrType === 'object' && pollDataOrType ? pollDataOrType.kind : kind;
 
     let message;
     if (type === 'discussion') {
         message = isCatchUp
-            ? "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts! Also it's a late post cuz I missed the set time.)"
-            : "@everyone **Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts!)";
+            ? "**Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts! Also it's a late post cuz I missed the set time.)"
+            : "**Today's AI Discussion Poll!** 💬 (No right or wrong answer, share your thoughts!)";
     } else {
         message = isCatchUp
-            ? "@everyone **Today's AI Poll!** 🧠 (It's a late post cuz I missed the set time.)"
-            : "@everyone **Today's AI Poll!** 🧠";
+            ? "**Today's AI Poll!** 🧠 (It's a late post cuz I missed the set time.)"
+            : "**Today's AI Poll!** 🧠";
     }
 
     if (pollKind === 'fallback') {
         message += `\n*(posted using a preset fallback because the AI service was unavailable)*`;
     }
 
-    return message;
+    return applyPollMention(message, mention);
 }
 
 module.exports = {

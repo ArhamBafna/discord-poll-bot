@@ -4,6 +4,7 @@ const dbOperations = require('../../database/operations');
 const { generateTriviaPoll, generateTextWithRetries } = require('../../services/ai/generation');
 const { createSuccessEmbed, replySuccess, replyError } = require('../../lib/embeds');
 const { resolveLastPoll } = require('../../services/polls/resolution');
+const { applyPollMention, resolvePollMention } = require('../../lib/mentions');
 
 
 async function resolveOnDemand(interaction, state, guildId) {
@@ -48,7 +49,8 @@ async function handleAsk(interaction, state, guildId) {
     await interaction.reply(`On-demand trivia poll requested for topic "${topic || 'Any AI topic'}". Generating...`);
     const pollResult = await generateTriviaPoll(topic, []);
     if (pollResult.status === 'success') {
-        const pollMessage = await interaction.channel.send({ content: `**Special On-Demand Poll!**`, poll: { question: { text: pollResult.data.question }, answers: pollResult.data.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
+        const intro = applyPollMention('**Special On-Demand Poll!**', resolvePollMention(state, interaction.channel));
+        const pollMessage = await interaction.channel.send({ content: intro, poll: { question: { text: pollResult.data.question }, answers: pollResult.data.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
         state.activeOnDemandPoll = { ...pollResult.data, messageId: pollMessage.id };
         await dbOperations.saveStateToDB(guildId, 'activeOnDemandPoll', state.activeOnDemandPoll);
         await interaction.editReply('Poll generated successfully!');

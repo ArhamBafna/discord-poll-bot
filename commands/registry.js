@@ -1,5 +1,6 @@
 // --- Slash Command Registry ---
 const { SlashCommandBuilder } = require('discord.js');
+const { POLL_MENTION_MODES } = require('../lib/mentions');
 
 const { handleLeaderboard } = require('./user/leaderboard');
 const { handleRank } = require('./user/rank');
@@ -78,7 +79,15 @@ const registry = [
             .addSubcommand(sub => sub.setName('role').setDescription('Sets the role allowed to run administrative commands.')
                 .addRoleOption(option => option.setName('role').setDescription('The administrative role.').setRequired(true)))
             .addSubcommand(sub => sub.setName('invite-points').setDescription('Sets how many points are awarded per successful invite.')
-                .addIntegerOption(option => option.setName('points').setDescription('Points awarded per invite.').setRequired(true).setMinValue(0).setMaxValue(100))),
+                .addIntegerOption(option => option.setName('points').setDescription('Points awarded per invite.').setRequired(true).setMinValue(0).setMaxValue(100)))
+            .addSubcommand(sub => sub.setName('mention').setDescription('Sets who gets pinged when a new poll posts. Defaults to no ping.')
+                .addStringOption(option => option.setName('mode').setDescription('Who to ping when a poll posts.').setRequired(true)
+                    .addChoices(
+                        { name: 'Everyone', value: POLL_MENTION_MODES.EVERYONE },
+                        { name: 'A specific role', value: POLL_MENTION_MODES.ROLE },
+                        { name: 'No one', value: POLL_MENTION_MODES.NONE }
+                    ))
+                .addRoleOption(option => option.setName('role').setDescription('The role to ping. Only used when mode is a specific role.'))),
         handler: handleConfig,
         adminOnly: true
     },

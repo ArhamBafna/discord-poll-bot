@@ -15,9 +15,26 @@ const configJson = configCmd.builder.toJSON();
 const configSubcommands = configJson.options.map(opt => opt.name);
 assert.deepStrictEqual(
     configSubcommands.sort(),
-    ['cc', 'invite-points', 'role', 'view', 'welcome'].sort(),
+    ['cc', 'invite-points', 'mention', 'role', 'view', 'welcome'].sort(),
     'config has correct subcommands'
 );
+
+// The mention subcommand must offer exactly the three supported modes, and the role option
+// stays optional because Discord cannot make it required for one mode only.
+const mentionSub = configJson.options.find(opt => opt.name === 'mention');
+assert.ok(mentionSub, 'config mention subcommand exists');
+const mentionMode = mentionSub.options.find(opt => opt.name === 'mode');
+assert.ok(mentionMode, 'config mention has a mode option');
+assert.strictEqual(mentionMode.required, true, 'mention mode is required');
+assert.deepStrictEqual(
+    mentionMode.choices.map(c => c.value).sort(),
+    ['everyone', 'none', 'role'].sort(),
+    'mention mode offers exactly everyone, role and none'
+);
+const mentionRole = mentionSub.options.find(opt => opt.name === 'role');
+assert.ok(mentionRole, 'config mention has a role option');
+assert.strictEqual(mentionRole.type, 8, 'mention role option is a role picker');
+assert.notStrictEqual(mentionRole.required, true, 'mention role option stays optional');
 
 // 2. Poll command structure
 const pollCmd = registry.find(c => c.builder.name === 'poll');

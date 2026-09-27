@@ -44,6 +44,8 @@ assert.ok(configValue.includes('/config welcome <template>'), 'config has /confi
 assert.ok(configValue.includes('/config cc <user>'), 'config has /config cc <user>');
 assert.ok(configValue.includes('/config role <role>'), 'config has /config role <role>');
 assert.ok(configValue.includes('/config invite-points <points>'), 'config has /config invite-points <points>');
+// /config mention has a required mode and an optional role, so it renders as <mode> [role]
+assert.ok(configValue.includes('/config mention <mode> [role]'), 'config has /config mention <mode> [role]');
 
 // 5. Verify /poll subcommands in embed value
 const pollValue = fieldMap.get('/poll (Admin)');

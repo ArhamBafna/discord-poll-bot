@@ -58,6 +58,7 @@ How to set up:
 - `/config cc <@user>` - Sets which user to CC in new member welcome messages.
 - `/config role <@role>` - Sets which role has permission to run administrative commands.
 - `/config invite-points <points>` - Sets how many points are awarded per successful server invite (0–100).
+- `/config mention <mode> [@role]` - Sets who gets pinged when a poll posts: `everyone`, a `role`, or `none` (default). Applies to the daily poll, weekly leaderboard, and `/poll ask`. Polls still post without a ping if the chosen role is deleted or the bot lacks the Mention Everyone permission.
 - `/poll ask [topic]` - Starts an on-demand trivia poll immediately (optionally with a custom topic; does not award points).
 - `/poll resolve <poll>` - Manually resolves either an `on-demand` or `daily` poll.
 - `/poll relink <message_id> <correct_option>` - Reconnects the bot's memory to track a poll that was missed or deleted (message ID and option number 1–10).

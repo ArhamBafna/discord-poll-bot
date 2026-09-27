@@ -12,6 +12,7 @@ function getServerState(guildId) {
             ccUser: null, // Stores the ID of the user to CC in welcome messages
             welcomeTemplate: null, // Stores the custom welcome message template
             controlRole: null, // Stores the ID of the role allowed to run admin commands
+            pollMention: null, // Stores { mode, roleId } for the poll ping. null = never configured = no ping
             roleMilestones: {}, // Stores { points: roleId } mappings for automated role assignment
             inviteRewardPoints: 1, // Points awarded to inviter when someone joins via their invite
             commandStats: {}, // Stores { commandName: useCount } for engagement

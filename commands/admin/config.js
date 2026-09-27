@@ -2,6 +2,7 @@ const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
 const { ALLOWED_USERNAME, CONTROL_ROLE_NAME } = require('../../config');
 const { renderWelcomeTemplate } = require('../../lib/serviceHelpers');
+const { POLL_MENTION_MODES, describePollMention } = require('../../lib/mentions');
 
 async function handleView(interaction, state) {
     const ccUser = state.ccUser ? `<@${state.ccUser}>` : `Default (${ALLOWED_USERNAME})`;
@@ -32,6 +33,7 @@ async function handleView(interaction, state) {
         `- Administrative Role: ${controlRole}\n` +
         `- CC User: ${ccUser}\n` +
         `- Invite Reward: ${inviteRewardPoints} ${inviteUnit}\n` +
+        `- Poll Ping: ${describePollMention(state.pollMention)}\n` +
         `- Role Milestones: ${Object.keys(state.roleMilestones).length} set\n\n` +
         `**Preview (Welcome)**\n` +
         `${preview}\n\n` +
@@ -92,6 +94,35 @@ async function handleInvitePoints(interaction, guildId) {
     }
 }
 
+async function handleMention(interaction, guildId) {
+    const mode = interaction.options.getString('mode');
+    const targetRole = interaction.options.getRole('role');
+
+    // Discord cannot mark a role option as required only for one mode, so the check is here.
+    if (mode === POLL_MENTION_MODES.ROLE && !targetRole) {
+        return interaction.reply({ content: 'Pick a role to ping, or choose a different mode.', ephemeral: true });
+    }
+
+    // Mode and role are stored as one value. A role left in the picker alongside a non-role
+    // mode is discarded, so the stored setting always describes exactly one behaviour.
+    const value = {
+        mode,
+        roleId: mode === POLL_MENTION_MODES.ROLE ? targetRole.id : null
+    };
+
+    try {
+        const success = await dbOperations.updateAndPersist(guildId, 'pollMention', value);
+        if (!success) throw new Error('DB Error');
+        const confirmation = mode === POLL_MENTION_MODES.NONE
+            ? 'Success! New polls will no longer ping anyone.'
+            : `Success! New polls will now ping ${describePollMention(value)}.`;
+        await interaction.reply(confirmation);
+    } catch (error) {
+        console.error('[CONFIG MENTION] Error setting poll mention:', error);
+        await interaction.reply({ content: 'A database error occurred.', ephemeral: true });
+    }
+}
+
 async function handleConfig(interaction) {
     const guildId = interaction.guild.id;
     const state = stateManager.getServerState(guildId);
@@ -103,6 +134,7 @@ async function handleConfig(interaction) {
         case 'cc': return handleCC(interaction, guildId);
         case 'role': return handleRole(interaction, guildId);
         case 'invite-points': return handleInvitePoints(interaction, guildId);
+        case 'mention': return handleMention(interaction, guildId);
         default: return interaction.reply({ content: 'Unknown subcommand.', ephemeral: true });
     }
 }
