@@ -48,7 +48,7 @@ async function handleReady(discordClient) {
         log(`Failed during guild initialization: ${error.message}`, 'STARTUP');
     }
 
-    cron.schedule('0 6 * * *', () => runCentralizedDailyPost(discordClient), { scheduled: true, timezone: 'America/New_York' });
+    cron.schedule('0 6 * * *', () => runCentralizedDailyPost(discordClient).catch(err => log(`Centralized daily post failed: ${err.message}`, 'STARTUP')), { scheduled: true, timezone: 'America/New_York' });
     TARGET_CHANNEL_IDS.forEach(channelId => {
         cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId, discordClient), { scheduled: true, timezone: 'America/New_York' });
     });

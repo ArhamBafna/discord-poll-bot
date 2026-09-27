@@ -136,14 +136,19 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
 
 async function runCentralizedDailyPost(discordClient) {
     console.log('[POLL][COORDINATOR] Starting centralized daily post run.');
-    const now = new Date();
-    const todayDateStr = getNYDateString(now);
-    const sharedPollData = await getOrGenerateDailyPoll(todayDateStr);
+    try {
+        const now = new Date();
+        const todayDateStr = getNYDateString(now);
+        const sharedPollData = await getOrGenerateDailyPoll(todayDateStr);
 
-    for (const channelId of TARGET_CHANNEL_IDS) {
-        await performDailyPost(channelId, discordClient, false, sharedPollData);
+        for (const channelId of TARGET_CHANNEL_IDS) {
+            await performDailyPost(channelId, discordClient, false, sharedPollData);
+        }
+        console.log('[POLL][COORDINATOR] Centralized daily post run complete.');
+    } catch (error) {
+        // Skip-the-day: no retry here. The next restart catch-up is the recovery path.
+        console.error('[POLL][COORDINATOR] Centralized daily post run failed:', error);
     }
-    console.log('[POLL][COORDINATOR] Centralized daily post run complete.');
 }
 
 async function postWeeklySummary(channelId, discordClient) {
@@ -210,8 +215,8 @@ INSTRUCTIONS:
 4. Mention if anyone hit a new role milestone or is very close to one.
 5. Identify anyone who hasn't gained any points this week (inactive) and give them a humorous/supportive "nudge" to participate again.
 6. DO NOT "nudge" people just for being at the bottom of the top 10 if they were active.
-7. Be casual, use some slang, but stay encouraging. 
-8. Keep it concise (1-2 paragraphs).`;
+7. Be casual, use some slang, but stay encouraging.
+8. Keep it short and mobile-readable: a tight list of brief bullet-point highlights, not paragraphs. Prioritize the most interesting highlights instead of commenting on every instruction above.`;
 
         const summaryText = await generateTextWithRetries(prompt, 'gemini_summary');
         const aiComment = summaryText && summaryText.trim().length > 0
