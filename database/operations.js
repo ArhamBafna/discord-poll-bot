@@ -3,6 +3,15 @@ const pool = require('./connection');
 const stateManager = require('../state/manager');
 const { CODECS, isSettingsKey, parseStoredValue, serializeStoredValue } = require('./codecs');
 
+// Sentinel guild_id for data shared across every server (daily poll, question history).
+// Always use this constant instead of the literal so the partition cannot drift or be typo'd.
+const GLOBAL_GUILD_ID = 'global';
+
+// How many recent questions the AI sees, and how many we keep. These two must match:
+// the generation prompt reads the newest HISTORY_LIMIT questions and the trim deletes
+// everything past that same window.
+const QUESTION_HISTORY_LIMIT = 170;
+
 function resetGuildState(state) {
     state.leaderboard = {};
     state.lastPollData = null;
@@ -147,16 +156,16 @@ async function saveQuestionToHistory(guildId, question) {
         await pool.query('INSERT INTO question_history (guild_id, question) VALUES ($1, $2)', [guildId, question]);
         await pool.query(
             `DELETE FROM question_history a USING (
-                SELECT id FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC, id DESC OFFSET 50
+                 SELECT id FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC, id DESC OFFSET $2
              ) old WHERE a.id = old.id;`,
-            [guildId]
+            [guildId, QUESTION_HISTORY_LIMIT]
         );
     } catch (error) { console.error(`[DATABASE] Failed to save question history for guild ${guildId}:`, error); }
 }
 
 async function getGlobalStateValue(key) {
     try {
-        const res = await pool.query('SELECT value FROM kv_store WHERE guild_id = $1 AND key = $2', ['global', key]);
+        const res = await pool.query('SELECT value FROM kv_store WHERE guild_id = $1 AND key = $2', [GLOBAL_GUILD_ID, key]);
         if (res.rows.length === 0) return null;
         try {
             return JSON.parse(res.rows[0].value);
@@ -172,11 +181,11 @@ async function getGlobalStateValue(key) {
 async function saveGlobalStateValue(key, value) {
     try {
         if (value === null || value === undefined) {
-            await pool.query('DELETE FROM kv_store WHERE guild_id = $1 AND key = $2', ['global', key]);
+            await pool.query('DELETE FROM kv_store WHERE guild_id = $1 AND key = $2', [GLOBAL_GUILD_ID, key]);
             return;
         }
         const stringified = typeof value === 'object' ? JSON.stringify(value) : String(value);
-        await pool.query(`INSERT INTO kv_store (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;`, ['global', key, stringified]);
+        await pool.query(`INSERT INTO kv_store (guild_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (guild_id, key) DO UPDATE SET value = $3;`, [GLOBAL_GUILD_ID, key, stringified]);
     } catch (error) {
         console.error(`[DATABASE] Failed to save global state key '${key}':`, error);
     }
@@ -197,5 +206,7 @@ module.exports = {
     resetCommandUsage,
     saveQuestionToHistory,
     getGlobalStateValue,
-    saveGlobalStateValue
+    saveGlobalStateValue,
+    GLOBAL_GUILD_ID,
+    QUESTION_HISTORY_LIMIT
 };

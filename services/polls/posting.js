@@ -3,6 +3,7 @@ const { createLeaderboardEmbed } = require('../../lib/embeds');
 const pool = require('../../database/connection');
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
+const { GLOBAL_GUILD_ID, QUESTION_HISTORY_LIMIT } = dbOperations;
 const { generateTriviaPoll, generateDiscussionPoll } = require('../ai/generation');
 const { FALLBACK_POLLS, FALLBACK_DISCUSSION_POLLS } = require('./fallbacks');
 const serviceHelpers = require('../../lib/serviceHelpers');
@@ -14,65 +15,90 @@ const { TARGET_CHANNEL_IDS } = require('../../config');
 // State management for posting lock
 const postingLock = new Set(); // Prevents concurrent poll posting
 
+// Single-flight map keyed by date: only one daily poll is ever built at a time, so the
+// 6 AM alarm, restart catch-up, and a manual command racing each other share one result
+// instead of paying for (and posting) different questions. In-process only, which is
+// enough because exactly one bot copy runs. Multi-process would need a DB advisory lock.
+const inFlightPolls = new Map();
+
 async function getOrGenerateDailyPoll(dateStr) {
-    const globalKey = `daily_poll_${dateStr}`;
-    const existingPoll = await dbOperations.getGlobalStateValue(globalKey);
-    if (existingPoll) {
-        console.log(`[POLL][COORDINATOR] Found existing global poll for ${dateStr}. Skipping generation.`);
-        return existingPoll;
+    if (inFlightPolls.has(dateStr)) {
+        console.log(`[POLL][COORDINATOR] Generation for ${dateStr} already in progress. Waiting on it.`);
+        return inFlightPolls.get(dateStr);
     }
 
-    console.log(`[POLL][COORDINATOR] No global poll found for ${dateStr}. Generating new one.`);
-    // Fetch history from global
-    const historyRes = await pool.query("SELECT question FROM question_history WHERE guild_id = 'global' ORDER BY created_at DESC LIMIT 50");
-    const questionHistory = historyRes.rows.map(row => row.question);
-
-    let pollResult;
-    let newPollData;
-    let usedFallback = false;
-    
-    let isDiscussion = false;
-    const currentNYWeek = getNYWeekString(new Date());
-    const lastDiscussionWeek = await dbOperations.getGlobalStateValue('last_discussion_poll_week');
-    
-    if (lastDiscussionWeek !== currentNYWeek && Math.random() < 0.20) {
-        isDiscussion = true;
-        await dbOperations.saveGlobalStateValue('last_discussion_poll_week', currentNYWeek);
-    }
-
-    if (isDiscussion) {
-        pollResult = await generateDiscussionPoll('', questionHistory);
-        if (pollResult.status !== 'success') {
-            console.warn(`[POLL][COORDINATOR] Gemini and OpenRouter failed for discussion. Deploying preset fallback.`);
-            serviceHelpers.metrics.fallback_served++;
-            usedFallback = true;
-            newPollData = { ...FALLBACK_DISCUSSION_POLLS[Math.floor(Math.random() * FALLBACK_DISCUSSION_POLLS.length)], kind: 'fallback' };
-        } else {
-            newPollData = pollResult.data;
-            newPollData.kind = 'AI';
+    const generation = (async () => {
+        const globalKey = `daily_poll_${dateStr}`;
+        const existingPoll = await dbOperations.getGlobalStateValue(globalKey);
+        if (existingPoll) {
+            console.log(`[POLL][COORDINATOR] Found existing global poll for ${dateStr}. Skipping generation.`);
+            return existingPoll;
         }
-        newPollData.type = 'discussion';
-    } else {
-        pollResult = await generateTriviaPoll('', questionHistory);
-        if (pollResult.status !== 'success') {
-            console.warn(`[POLL][COORDINATOR] Gemini and OpenRouter failed. Status: ${pollResult.status}. Deploying preset fallback.`);
-            serviceHelpers.metrics.fallback_served++;
-            usedFallback = true;
-            newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], kind: 'fallback' };
-        } else {
-            newPollData = pollResult.data;
-            newPollData.kind = 'AI';
-        }
-        newPollData.type = 'trivia';
-    }
-    
-    // Save to global kv_store and history
-    await dbOperations.saveGlobalStateValue(globalKey, newPollData);
-    if (!usedFallback) {
-        await dbOperations.saveQuestionToHistory('global', newPollData.question);
-    }
 
-    return newPollData;
+        console.log(`[POLL][COORDINATOR] No global poll found for ${dateStr}. Generating new one.`);
+        // Question history is intentionally GLOBAL-ONLY since daily polls are shared across
+        // every server. Per-guild question_history rows are left in place but never read.
+        // Consequence: the global list starts empty, so a question recently asked in one server
+        // can reappear there until the shared list fills up. This is an accepted trade-off of
+        // centralization -- do not re-add per-guild reads without revisiting the shared-question
+        // decision (see issues #25 and #26).
+        const historyRes = await pool.query(
+            `SELECT question FROM question_history WHERE guild_id = $1 ORDER BY created_at DESC LIMIT $2`,
+            [GLOBAL_GUILD_ID, QUESTION_HISTORY_LIMIT]
+        );
+        const questionHistory = historyRes.rows.map(row => row.question);
+
+        let pollResult;
+        let newPollData;
+
+        let isDiscussion = false;
+        const currentNYWeek = getNYWeekString(new Date());
+        const lastDiscussionWeek = await dbOperations.getGlobalStateValue('last_discussion_poll_week');
+
+        if (lastDiscussionWeek !== currentNYWeek && Math.random() < 0.20) {
+            isDiscussion = true;
+            await dbOperations.saveGlobalStateValue('last_discussion_poll_week', currentNYWeek);
+        }
+
+        if (isDiscussion) {
+            pollResult = await generateDiscussionPoll('', questionHistory);
+            if (pollResult.status !== 'success') {
+                console.warn(`[POLL][COORDINATOR] Gemini and OpenRouter failed for discussion. Deploying preset fallback.`);
+                serviceHelpers.metrics.fallback_served++;
+                newPollData = { ...FALLBACK_DISCUSSION_POLLS[Math.floor(Math.random() * FALLBACK_DISCUSSION_POLLS.length)], kind: 'fallback' };
+            } else {
+                newPollData = pollResult.data;
+                newPollData.kind = 'AI';
+            }
+            newPollData.type = 'discussion';
+        } else {
+            pollResult = await generateTriviaPoll('', questionHistory);
+            if (pollResult.status !== 'success') {
+                console.warn(`[POLL][COORDINATOR] Gemini and OpenRouter failed. Status: ${pollResult.status}. Deploying preset fallback.`);
+                serviceHelpers.metrics.fallback_served++;
+                newPollData = { ...FALLBACK_POLLS[Math.floor(Math.random() * FALLBACK_POLLS.length)], kind: 'fallback' };
+            } else {
+                newPollData = pollResult.data;
+                newPollData.kind = 'AI';
+            }
+            newPollData.type = 'trivia';
+        }
+
+        // Save to global kv_store and history. Fallback questions go into history too, so the
+        // AI keeps avoiding preset questions we already showed. Only the question text is stored.
+        await dbOperations.saveGlobalStateValue(globalKey, newPollData);
+        await dbOperations.saveQuestionToHistory(GLOBAL_GUILD_ID, newPollData.question);
+
+        return newPollData;
+    })();
+
+    inFlightPolls.set(dateStr, generation);
+    try {
+        return await generation;
+    } finally {
+        // Clears on failure too, so the next caller retries from scratch.
+        inFlightPolls.delete(dateStr);
+    }
 }
 
 async function performDailyPost(channelId, discordClient, isCatchUp = false, sharedPollData = null) {
@@ -89,11 +115,14 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
         const now = new Date();
         const todayDateStr = getNYDateString(now);
 
-        // Check if we already posted today in this channel
+        // RULE: one daily poll per SERVER (guild), not per channel. lastPollData is guild-scoped,
+        // so TARGET_CHANNEL_IDS must hold at most one channel per guild. If two channels in the
+        // same guild were ever configured, the first to post wins and the rest are intentionally
+        // skipped that day.
         if (state.lastPollData && state.lastPollData.createdAt && !isNaN(new Date(state.lastPollData.createdAt))) {
             const lastPollDateStr = getNYDateString(new Date(state.lastPollData.createdAt));
             if (lastPollDateStr === todayDateStr) {
-                console.log(`[POLL][${guildId}][#${channel.name}] Poll for today (${todayDateStr}) already posted. Skipping.`);
+                console.log(`[POLL][${guildId}][#${channel.name}] Server already posted today (${todayDateStr}). Skipping channel.`);
                 return;
             }
         }
@@ -104,31 +133,33 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
         if (!newPollData) {
              newPollData = await getOrGenerateDailyPoll(todayDateStr);
         }
-        
+
+        // getOrGenerateDailyPoll either returns an object or throws, so a miss here means the
+        // shared data was corrupted. Fail loudly and let the per-channel catch log it.
+        if (!newPollData) {
+            throw new Error('CRITICAL FAILURE: Could not retrieve a poll.');
+        }
+
         // Deep clone to not mess up global shared references across channels
         newPollData = JSON.parse(JSON.stringify(newPollData));
         if (isCatchUp && newPollData.kind !== 'fallback') {
             newPollData.kind = 'catch-up';
         }
 
-        if (newPollData) {
-            const pollIntroMessage = getPollIntroMessage(newPollData, isCatchUp);
+        const pollIntroMessage = getPollIntroMessage(newPollData, isCatchUp);
 
-            const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
-            newPollData.pollMessageId = newPollMessage.id;
-            newPollData.createdAt = new Date().toISOString();
+        const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
+        newPollData.pollMessageId = newPollMessage.id;
+        newPollData.createdAt = new Date().toISOString();
 
-            state.lastPollData = newPollData;
-            await dbOperations.saveStateToDB(guildId, 'lastPollData', newPollData);
+        state.lastPollData = newPollData;
+        await dbOperations.saveStateToDB(guildId, 'lastPollData', newPollData);
 
-            if (newPollData.kind !== 'fallback') {
-                await dbOperations.saveStateToDB(guildId, 'lastSuccessfulPoll', newPollData);
-            }
-
-            console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
-        } else {
-            console.error(`[POLL][${guildId}][#${channel.name}] CRITICAL FAILURE: Could not retrieve a poll.`);
+        if (newPollData.kind !== 'fallback') {
+            await dbOperations.saveStateToDB(guildId, 'lastSuccessfulPoll', newPollData);
         }
+
+        console.log(`[POLL][${guildId}][#${channel.name}] Successfully posted new poll: "${newPollData.question}"`);
     } catch (error) {
         console.error(`[POLL][Channel: ${channelId}] Critical error during daily post:`, error);
     } finally { postingLock.delete(channelId); }
