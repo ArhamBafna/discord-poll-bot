@@ -17,7 +17,12 @@ async function checkForMissedPolls(discordClient) {
 
     const todayDateStr = getNYDateString(now);
     const { getOrGenerateDailyPoll } = require('./posting');
-    const sharedPollData = await getOrGenerateDailyPoll(todayDateStr);
+
+    // Generated lazily: only once we know at least one channel actually needs it, so a restart
+    // where everything is already current costs zero AI calls. If generation fails we log it and
+    // post nothing this run; the next restart retries.
+    let sharedPollData = null;
+    let generationFailed = false;
 
     for (const channelId of TARGET_CHANNEL_IDS) {
         try {
@@ -26,22 +31,28 @@ async function checkForMissedPolls(discordClient) {
             const guildId = channel.guild.id;
             await dbOperations.loadStateForGuild(guildId);
             const state = stateManager.getServerState(guildId);
-            
+
             // Check if we have data for TODAY (NY time)
             if (!state.lastPollData || !state.lastPollData.createdAt || isNaN(new Date(state.lastPollData.createdAt))) {
                 console.log(`[STARTUP] No previous valid poll found. Catching up for ${channel.name}.`);
-                await performDailyPost(channelId, discordClient, true, sharedPollData);
-                continue;
-            }
-            
-            const lastPollDateStr = getNYDateString(new Date(state.lastPollData.createdAt));
-
-            if (lastPollDateStr !== todayDateStr) {
-                console.log(`[STARTUP] Last poll was from ${lastPollDateStr}, but today is ${todayDateStr}. Catching up for ${channel.name}.`);
-                await performDailyPost(channelId, discordClient, true, sharedPollData);
+            } else if (getNYDateString(new Date(state.lastPollData.createdAt)) !== todayDateStr) {
+                console.log(`[STARTUP] Last poll was from ${getNYDateString(new Date(state.lastPollData.createdAt))}, but today is ${todayDateStr}. Catching up for ${channel.name}.`);
             } else {
                 console.log(`[STARTUP] Poll for today (${todayDateStr}) already exists in ${channel.name}. No action needed.`);
+                continue;
             }
+
+            if (generationFailed) continue;
+            if (!sharedPollData) {
+                try {
+                    sharedPollData = await getOrGenerateDailyPoll(todayDateStr);
+                } catch (error) {
+                    generationFailed = true;
+                    console.error('[STARTUP] CRITICAL ERROR during catch-up generation:', error);
+                    continue;
+                }
+            }
+            await performDailyPost(channelId, discordClient, true, sharedPollData);
         } catch (error) { console.error(`[STARTUP] CRITICAL ERROR during catch-up check for channel ${channelId}:`, error); }
     }
     console.log('[STARTUP] Missed poll check complete.');
