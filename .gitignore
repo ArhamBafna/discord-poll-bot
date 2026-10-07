@@ -21,3 +21,6 @@ graphify-out/.graphify_*.json
 graphify-out/.graphify_*.sig
 graphify-out/cost.json
 graphify-out/manifest.json
+
+# Git worktrees
+.worktrees/

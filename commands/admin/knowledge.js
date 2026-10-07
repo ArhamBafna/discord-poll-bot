@@ -2,6 +2,8 @@ const { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = req
 const stateManager = require('../../state/manager');
 const { CODECS } = require('../../database/codecs');
 
+const SETTINGS_KEYS = Object.keys(CODECS).map(k => k.toLowerCase());
+
 async function handleKnowledge(interaction) {
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guild.id;
@@ -9,8 +11,7 @@ async function handleKnowledge(interaction) {
 
     if (subCommand === 'update') {
         const topic = interaction.options.getString('topic').toLowerCase().trim().replace(/\s+/g, '-');
-        const settingsKeys = Object.keys(CODECS).map(k => k.toLowerCase());
-        if (settingsKeys.includes(topic)) {
+        if (SETTINGS_KEYS.includes(topic)) {
             return interaction.reply({ content: `Cannot use **${topic}** as a knowledge topic because it is a reserved bot setting.`, ephemeral: true });
         }
         const rawKnowledge = state.knowledgeBase[topic];
@@ -46,8 +47,7 @@ async function handleKnowledge(interaction) {
     } 
     else if (subCommand === 'delete') {
         const topic = interaction.options.getString('topic').toLowerCase().trim();
-        const settingsKeys = Object.keys(CODECS).map(k => k.toLowerCase());
-        if (settingsKeys.includes(topic)) {
+        if (SETTINGS_KEYS.includes(topic)) {
             return interaction.reply({ content: `Cannot delete **${topic}** because it is a reserved bot setting.`, ephemeral: true });
         }
         if (!state.knowledgeBase[topic]) {

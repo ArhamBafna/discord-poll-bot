@@ -1,3 +1,5 @@
+Discord poll bot. Posts daily AI-generated polls (Gemini/OpenRouter API), and other fun commands. Read README.md for all commands. 
+
 ## Agent skills
 
 ### Issue tracker
