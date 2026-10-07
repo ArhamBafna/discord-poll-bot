@@ -9,7 +9,7 @@ const { FALLBACK_POLLS, FALLBACK_DISCUSSION_POLLS } = require('./fallbacks');
 const serviceHelpers = require('../../lib/serviceHelpers');
 const { generateTextWithRetries } = require('../ai/generation');
 const pollResolution = require('./resolution');
-const { getNYDateString, getNYWeekString } = require('../../utils/dateUtils');
+const { getNYDateString, getNYWeekString, hasPostedToday } = require('../../utils/dateUtils');
 const { applyPollMention, resolvePollMention } = require('../../lib/mentions');
 const { TARGET_CHANNEL_IDS } = require('../../config');
 
@@ -120,12 +120,9 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
         // so TARGET_CHANNEL_IDS must hold at most one channel per guild. If two channels in the
         // same guild were ever configured, the first to post wins and the rest are intentionally
         // skipped that day.
-        if (state.lastPollData && state.lastPollData.createdAt && !isNaN(new Date(state.lastPollData.createdAt))) {
-            const lastPollDateStr = getNYDateString(new Date(state.lastPollData.createdAt));
-            if (lastPollDateStr === todayDateStr) {
-                console.log(`[POLL][${guildId}][#${channel.name}] Server already posted today (${todayDateStr}). Skipping channel.`);
-                return;
-            }
+        if (hasPostedToday(state, todayDateStr)) {
+            console.log(`[POLL][${guildId}][#${channel.name}] Server already posted today (${todayDateStr}). Skipping channel.`);
+            return;
         }
 
         await pollResolution.resolveLastPoll(channel, discordClient);
