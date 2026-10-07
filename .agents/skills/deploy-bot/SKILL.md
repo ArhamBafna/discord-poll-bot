@@ -23,12 +23,14 @@ Remote server pull directly from GitHub `main`. Local changes must reach GitHub 
    ```powershell
    git status
    ```
-2. If uncommitted changes: commit now.
-3. If unpushed commits (`ahead of origin/main`):
-   ```powershell
-   git push origin main
-   ```
-4. Verify local clean and synced with `origin/main`.
+2. If uncommitted or unpushed changes:
+   - Ask user if they want to include changes in deploy.
+   - If yes: commit and push all relevant changes to `main`:
+     ```powershell
+     git push origin main
+     ```
+   - If no: continue deploy with existing remote `origin/main`.
+3. Verify state synced with `origin/main` before deploy.
 
 ## Deployment Steps
 
