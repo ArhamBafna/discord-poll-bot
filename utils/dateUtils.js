@@ -16,4 +16,11 @@ function getNYWeekString(date) {
     return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
 }
 
-module.exports = { getNYDateString, getNYWeekString };
+function hasPostedToday(state, dateStr) {
+    if (!state?.lastPollData?.createdAt) return false;
+    const d = new Date(state.lastPollData.createdAt);
+    if (isNaN(d)) return false;
+    return getNYDateString(d) === dateStr;
+}
+
+module.exports = { getNYDateString, getNYWeekString, hasPostedToday };

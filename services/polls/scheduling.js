@@ -1,5 +1,5 @@
 // --- Poll Scheduling & Missed Poll Checks ---
-const { getNYDateString } = require('../../utils/dateUtils');
+const { getNYDateString, hasPostedToday } = require('../../utils/dateUtils');
 const { TARGET_CHANNEL_IDS } = require('../../config');
 const { performDailyPost } = require('./posting');
 const stateManager = require('../../state/manager');
@@ -35,7 +35,7 @@ async function checkForMissedPolls(discordClient) {
             // Check if we have data for TODAY (NY time)
             if (!state.lastPollData || !state.lastPollData.createdAt || isNaN(new Date(state.lastPollData.createdAt))) {
                 console.log(`[STARTUP] No previous valid poll found. Catching up for ${channel.name}.`);
-            } else if (getNYDateString(new Date(state.lastPollData.createdAt)) !== todayDateStr) {
+            } else if (!hasPostedToday(state, todayDateStr)) {
                 console.log(`[STARTUP] Last poll was from ${getNYDateString(new Date(state.lastPollData.createdAt))}, but today is ${todayDateStr}. Catching up for ${channel.name}.`);
             } else {
                 console.log(`[STARTUP] Poll for today (${todayDateStr}) already exists in ${channel.name}. No action needed.`);
