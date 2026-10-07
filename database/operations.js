@@ -21,6 +21,7 @@ function resetGuildState(state) {
     state.welcomeTemplate = null;
     state.controlRole = null;
     state.pollMention = null;
+    state.pollChannel = null;
     state.roleMilestones = {};
     state.inviteRewardPoints = 1;
     state.commandStats = {};

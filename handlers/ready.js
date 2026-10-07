@@ -5,7 +5,6 @@ const { log } = require('../utils/logger');
 const { initializeDatabase } = require('../database/initialization');
 const { commands, rest } = require('../commands/definitions');
 const { cacheAndSyncInvites } = require('../services/invites/tracking');
-const { TARGET_CHANNEL_IDS } = require('../config');
 const { runCentralizedDailyPost, postWeeklySummary } = require('../services/polls/posting');
 const { checkForMissedPolls } = require('../services/polls/scheduling');
 const { checkAndPostEngagement } = require('../services/engagement');
@@ -49,9 +48,15 @@ async function handleReady(discordClient) {
     }
 
     cron.schedule('0 6 * * *', () => runCentralizedDailyPost(discordClient).catch(err => log(`Centralized daily post failed: ${err.message}`, 'STARTUP')), { scheduled: true, timezone: 'America/New_York' });
-    TARGET_CHANNEL_IDS.forEach(channelId => {
-        cron.schedule('0 21 * * 0', () => postWeeklySummary(channelId, discordClient), { scheduled: true, timezone: 'America/New_York' });
-    });
+    
+    cron.schedule('0 21 * * 0', async () => {
+        for (const guild of discordClient.guilds.cache.values()) {
+            const state = stateManager.getServerState(guild.id);
+            if (state.pollChannel) {
+                await postWeeklySummary(state.pollChannel, discordClient);
+            }
+        }
+    }, { scheduled: true, timezone: 'America/New_York' });
 
     // Engagement scanning is global and already iterates all guilds.
     cron.schedule('0 10 * * *', () => checkAndPostEngagement(discordClient), { scheduled: true, timezone: 'America/New_York' });

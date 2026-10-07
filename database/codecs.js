@@ -50,7 +50,8 @@ const CODECS = {
     pollMention: { default: null, parse: (raw) => parseJson(raw, null), serialize: serializeJson },
     lastEngagementPostGeneral: { default: null, parse: (raw) => parseText(raw, null), serialize: serializeText },
     lastEngagementPostTeam: { default: null, parse: (raw) => parseText(raw, null), serialize: serializeText },
-    inviteRewardPoints: { default: 1, parse: parseInviteRewardPoints, serialize: serializeInviteRewardPoints }
+    inviteRewardPoints: { default: 1, parse: parseInviteRewardPoints, serialize: serializeInviteRewardPoints },
+    pollChannel: { default: null, parse: (raw) => parseText(raw, null), serialize: serializeText }
 };
 
 function isSettingsKey(key) {

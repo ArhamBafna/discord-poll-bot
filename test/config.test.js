@@ -51,16 +51,13 @@ assert.doesNotThrow(config.applyNetworkDefaults, 'applyNetworkDefaults does not 
 const savedApiKey = process.env.API_KEY;
 const savedToken = process.env.DISCORD_BOT_TOKEN;
 const savedDb = process.env.DATABASE_URL;
-const savedChannels = process.env.TARGET_CHANNEL_IDS;
 process.env.API_KEY = '';
 process.env.DISCORD_BOT_TOKEN = '';
 process.env.DATABASE_URL = '';
-process.env.TARGET_CHANNEL_IDS = '';
 assert.throws(() => config.validateConfig(), /Missing env/, 'validateConfig throws on missing env');
 // Restore env
 process.env.API_KEY = savedApiKey;
 process.env.DISCORD_BOT_TOKEN = savedToken;
 process.env.DATABASE_URL = savedDb;
-process.env.TARGET_CHANNEL_IDS = savedChannels;
 
 console.log('config tests passed');

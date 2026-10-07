@@ -5,9 +5,27 @@ const { ALLOWED_USERNAME } = require('../config');
 const dbOperations = require('../database/operations');
 const stateManager = require('../state/manager');
 const { renderWelcomeTemplate } = require('../lib/serviceHelpers');
+const { commands, rest } = require('../commands/definitions');
+const { Routes } = require('discord.js');
+const { syncAllMilestoneRoles } = require('../services/roles/milestones');
+const { log } = require('../utils/logger');
 
 async function handleGuildCreate(guild) {
-    await cacheAndSyncInvites(guild);
+    log(`Joined new guild: ${guild.name} (${guild.id})`, 'STARTUP');
+    try {
+        await rest.put(
+            Routes.applicationGuildCommands(guild.client.user.id, guild.id),
+            { body: commands },
+        );
+
+        await dbOperations.loadStateForGuild(guild.id);
+        const state = stateManager.getServerState(guild.id);
+        await syncAllMilestoneRoles(guild, state);
+        await cacheAndSyncInvites(guild);
+        log(`Guild initialization complete for ${guild.id}`, 'STARTUP');
+    } catch (err) {
+        log(`Guild initialization failed for ${guild.id}: ${err.message}`, 'STARTUP');
+    }
 }
 
 async function handleInviteCreate(invite, discordClient) {

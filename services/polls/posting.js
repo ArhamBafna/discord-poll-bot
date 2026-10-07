@@ -11,7 +11,6 @@ const { generateTextWithRetries } = require('../ai/generation');
 const pollResolution = require('./resolution');
 const { getNYDateString, getNYWeekString, hasPostedToday } = require('../../utils/dateUtils');
 const { applyPollMention, resolvePollMention } = require('../../lib/mentions');
-const { TARGET_CHANNEL_IDS } = require('../../config');
 
 // State management for posting lock
 const postingLock = new Set(); // Prevents concurrent poll posting
@@ -117,8 +116,8 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
         const todayDateStr = getNYDateString(now);
 
         // RULE: one daily poll per SERVER (guild), not per channel. lastPollData is guild-scoped,
-        // so TARGET_CHANNEL_IDS must hold at most one channel per guild. If two channels in the
-        // same guild were ever configured, the first to post wins and the rest are intentionally
+        // so we store at most one pollChannel per guild. If multiple channels were supported,
+        // the first to post would win and the rest would be skipped that day.
         // skipped that day.
         if (hasPostedToday(state, todayDateStr)) {
             console.log(`[POLL][${guildId}][#${channel.name}] Server already posted today (${todayDateStr}). Skipping channel.`);
@@ -170,8 +169,11 @@ async function runCentralizedDailyPost(discordClient) {
         const todayDateStr = getNYDateString(now);
         const sharedPollData = await getOrGenerateDailyPoll(todayDateStr);
 
-        for (const channelId of TARGET_CHANNEL_IDS) {
-            await performDailyPost(channelId, discordClient, false, sharedPollData);
+        for (const guild of discordClient.guilds.cache.values()) {
+            const state = stateManager.getServerState(guild.id);
+            if (state.pollChannel) {
+                await performDailyPost(state.pollChannel, discordClient, false, sharedPollData);
+            }
         }
         console.log('[POLL][COORDINATOR] Centralized daily post run complete.');
     } catch (error) {

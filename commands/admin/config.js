@@ -34,6 +34,7 @@ async function handleView(interaction, state) {
         `- CC User: ${ccUser}\n` +
         `- Invite Reward: ${inviteRewardPoints} ${inviteUnit}\n` +
         `- Poll Ping: ${describePollMention(state.pollMention)}\n` +
+        `- Poll Channel: ${state.pollChannel ? '<#' + state.pollChannel + '>' : 'None configured'}\n` +
         `- Role Milestones: ${Object.keys(state.roleMilestones).length} set\n\n` +
         `**Preview (Welcome)**\n` +
         `${preview}\n\n` +

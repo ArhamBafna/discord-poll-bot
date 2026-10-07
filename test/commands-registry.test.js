@@ -68,8 +68,8 @@ for (const dep of deprecatedNames) {
 const registeredNames = registry.map(c => c.builder.name);
 assert.deepStrictEqual(
     registeredNames.sort(),
-    ['config', 'help', 'knowledge', 'leaderboard', 'milestones', 'points', 'poll', 'rank'].sort(),
-    'registry contains exactly expected 8 commands'
+    ['config', 'help', 'knowledge', 'leaderboard', 'milestones', 'points', 'poll', 'rank', 'setpollchannel'].sort(),
+    'registry contains exactly expected 9 commands'
 );
 
 console.log('commands-registry tests passed');

@@ -1,6 +1,5 @@
 // --- Poll Scheduling & Missed Poll Checks ---
 const { getNYDateString, hasPostedToday } = require('../../utils/dateUtils');
-const { TARGET_CHANNEL_IDS } = require('../../config');
 const { performDailyPost } = require('./posting');
 const stateManager = require('../../state/manager');
 const dbOperations = require('../../database/operations');
@@ -24,13 +23,17 @@ async function checkForMissedPolls(discordClient) {
     let sharedPollData = null;
     let generationFailed = false;
 
-    for (const channelId of TARGET_CHANNEL_IDS) {
+    for (const guild of discordClient.guilds.cache.values()) {
         try {
+            const state = stateManager.getServerState(guild.id);
+            if (!state.pollChannel) continue;
+            
+            const channelId = state.pollChannel;
             const channel = await discordClient.channels.fetch(channelId);
             if (!channel || !channel.guild) continue;
-            const guildId = channel.guild.id;
-            await dbOperations.loadStateForGuild(guildId);
-            const state = stateManager.getServerState(guildId);
+            
+            // We already have the state loaded from ready.js, but this is safe to leave
+            await dbOperations.loadStateForGuild(guild.id);
 
             // Check if we have data for TODAY (NY time)
             if (!state.lastPollData || !state.lastPollData.createdAt || isNaN(new Date(state.lastPollData.createdAt))) {

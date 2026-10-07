@@ -10,8 +10,15 @@ const { handleKnowledge } = require('./admin/knowledge');
 const { handleMilestones } = require('./admin/milestones');
 const { handleConfig } = require('./admin/config');
 const { handlePoll } = require('./admin/poll');
+const { handleSetpollchannel } = require('./admin/setpollchannel');
 
 const registry = [
+    {
+        builder: new SlashCommandBuilder().setName('setpollchannel').setDescription('Sets the channel for daily polls and weekly summaries.')
+            .addChannelOption(option => option.setName('channel').setDescription('The channel to use.').setRequired(true)),
+        handler: handleSetpollchannel,
+        adminOnly: true
+    },
     {
         builder: new SlashCommandBuilder().setName('leaderboard').setDescription('Displays the top 10 players on the server.'),
         handler: handleLeaderboard,

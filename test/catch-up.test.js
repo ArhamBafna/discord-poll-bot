@@ -7,8 +7,7 @@
 // Run: node --test test/catch-up.test.js
 const assert = require('node:assert');
 
-// Must be set before config/scheduling are required: TARGET_CHANNEL_IDS is read at load time.
-process.env.TARGET_CHANNEL_IDS = '111,222';
+// Must be set before config/scheduling are required
 
 const stateManager = require('../state/manager');
 const dbOperations = require('../database/operations');
@@ -41,7 +40,15 @@ const fakeChannel = (channelId) => ({
     messages: { fetch: async () => { throw new Error('no prior poll to resolve'); } }
 });
 
-const fakeClient = { channels: { fetch: async (id) => fakeChannel(id) } };
+const fakeClient = {
+    channels: { fetch: async (id) => fakeChannel(id) },
+    guilds: {
+        cache: new Map([
+            ['guild-111', { id: 'guild-111' }],
+            ['guild-222', { id: 'guild-222' }]
+        ])
+    }
+};
 
 // Counting stub for generation, swapped in per scenario.
 let generationCalls = 0;
@@ -68,8 +75,8 @@ function statesByGuild(map) {
     generationCalls = 0;
     generationImpl = async () => { throw new Error('should never be called'); };
     statesByGuild({
-        'guild-111': { lastPollData: { createdAt: AFTER_GATE_ISO } },
-        'guild-222': { lastPollData: { createdAt: AFTER_GATE_ISO } }
+        'guild-111': { pollChannel: '111', lastPollData: { createdAt: AFTER_GATE_ISO } },
+        'guild-222': { pollChannel: '222', lastPollData: { createdAt: AFTER_GATE_ISO } }
     });
 
     await withFakeClock(AFTER_GATE_ISO, () => checkForMissedPolls(fakeClient));
@@ -82,8 +89,8 @@ function statesByGuild(map) {
     generationCalls = 0;
     generationImpl = async () => ({ question: 'Q?', options: ['a', 'b'], type: 'trivia', kind: 'AI' });
     statesByGuild({
-        'guild-111': { lastPollData: { createdAt: YESTERDAY_ISO } },
-        'guild-222': { lastPollData: { createdAt: YESTERDAY_ISO } }
+        'guild-111': { pollChannel: '111', lastPollData: { createdAt: YESTERDAY_ISO } },
+        'guild-222': { pollChannel: '222', lastPollData: { createdAt: YESTERDAY_ISO } }
     });
 
     await withFakeClock(AFTER_GATE_ISO, () => checkForMissedPolls(fakeClient));
@@ -96,8 +103,8 @@ function statesByGuild(map) {
     generationCalls = 0;
     generationImpl = async () => ({ question: 'Q?', options: ['a', 'b'], type: 'trivia', kind: 'AI' });
     statesByGuild({
-        'guild-111': { lastPollData: { createdAt: AFTER_GATE_ISO } },
-        'guild-222': { lastPollData: { createdAt: YESTERDAY_ISO } }
+        'guild-111': { pollChannel: '111', lastPollData: { createdAt: AFTER_GATE_ISO } },
+        'guild-222': { pollChannel: '222', lastPollData: { createdAt: YESTERDAY_ISO } }
     });
 
     await withFakeClock(AFTER_GATE_ISO, () => checkForMissedPolls(fakeClient));
@@ -110,8 +117,8 @@ function statesByGuild(map) {
     generationCalls = 0;
     generationImpl = async () => { throw new Error('AI provider exploded'); };
     statesByGuild({
-        'guild-111': { lastPollData: { createdAt: YESTERDAY_ISO } },
-        'guild-222': { lastPollData: { createdAt: YESTERDAY_ISO } }
+        'guild-111': { pollChannel: '111', lastPollData: { createdAt: YESTERDAY_ISO } },
+        'guild-222': { pollChannel: '222', lastPollData: { createdAt: YESTERDAY_ISO } }
     });
 
     await withFakeClock(AFTER_GATE_ISO, () => checkForMissedPolls(fakeClient));
@@ -124,8 +131,8 @@ function statesByGuild(map) {
     generationCalls = 0;
     generationImpl = async () => { throw new Error('should never be called'); };
     statesByGuild({
-        'guild-111': { lastPollData: { createdAt: YESTERDAY_ISO } },
-        'guild-222': { lastPollData: { createdAt: YESTERDAY_ISO } }
+        'guild-111': { pollChannel: '111', lastPollData: { createdAt: YESTERDAY_ISO } },
+        'guild-222': { pollChannel: '222', lastPollData: { createdAt: YESTERDAY_ISO } }
     });
 
     await withFakeClock(BEFORE_GATE_ISO, () => checkForMissedPolls(fakeClient));
