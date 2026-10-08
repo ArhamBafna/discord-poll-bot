@@ -276,5 +276,6 @@ async function generateTextWithOpenRouter(messages, options = {}) {
 module.exports = {
     generateTriviaPollWithOpenRouter,
     generateTextWithOpenRouter,
-    normalizeOpenRouterMessages
+    normalizeOpenRouterMessages,
+    OPENROUTER_ENDPOINT
 };

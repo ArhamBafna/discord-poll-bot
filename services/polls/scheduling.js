@@ -25,15 +25,13 @@ async function checkForMissedPolls(discordClient) {
 
     for (const guild of discordClient.guilds.cache.values()) {
         try {
+            await dbOperations.loadStateForGuild(guild.id);
             const state = stateManager.getServerState(guild.id);
             if (!state.pollChannel) continue;
             
             const channelId = state.pollChannel;
             const channel = await discordClient.channels.fetch(channelId);
             if (!channel || !channel.guild) continue;
-            
-            // We already have the state loaded from ready.js, but this is safe to leave
-            await dbOperations.loadStateForGuild(guild.id);
 
             // Check if we have data for TODAY (NY time)
             if (!state.lastPollData || !state.lastPollData.createdAt || isNaN(new Date(state.lastPollData.createdAt))) {

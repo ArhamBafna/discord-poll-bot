@@ -170,9 +170,12 @@ async function runCentralizedDailyPost(discordClient) {
         const sharedPollData = await getOrGenerateDailyPoll(todayDateStr);
 
         for (const guild of discordClient.guilds.cache.values()) {
+            await dbOperations.loadStateForGuild(guild.id);
             const state = stateManager.getServerState(guild.id);
             if (state.pollChannel) {
                 await performDailyPost(state.pollChannel, discordClient, false, sharedPollData);
+            } else {
+                console.warn(`[POLL][${guild.id}] No pollChannel configured for guild "${guild.name}". Skipping daily post. Run /setpollchannel to configure.`);
             }
         }
         console.log('[POLL][COORDINATOR] Centralized daily post run complete.');
