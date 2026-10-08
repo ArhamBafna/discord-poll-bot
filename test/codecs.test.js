@@ -9,6 +9,17 @@
 const assert = require('node:assert');
 const { CODECS, isSettingsKey, parseStoredValue, serializeStoredValue } = require('../database/codecs');
 
+// CODECS registry covers all settings keys used by the bot
+const requiredSettings = [
+    'inviteRewardPoints', 'lastPollData', 'activeOnDemandPoll',
+    'lastSuccessfulPoll', 'lastWeeklyLeaderboard', 'roleMilestones',
+    'ccUser', 'welcomeTemplate', 'controlRole',
+    'lastEngagementPostGeneral', 'lastEngagementPostTeam'
+];
+for (const key of requiredSettings) {
+    assert.ok(CODECS[key], `CODECS has entry for ${key}`);
+}
+
 const POLL = { question: 'What is AI?', options: ['A', 'B'] };
 
 // parseStoredValue('inviteRewardPoints', '0') must be number 0, not 1 or falsy

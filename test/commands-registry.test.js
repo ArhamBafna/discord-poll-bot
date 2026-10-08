@@ -72,4 +72,20 @@ assert.deepStrictEqual(
     'registry contains exactly expected 9 commands'
 );
 
+// 5. Engagement service commands match registry and descriptions are complete
+const { USER_COMMANDS, ADMIN_COMMANDS, COMMAND_DESCRIPTIONS } = require('../services/engagement.js');
+const allEngagementCommands = [...USER_COMMANDS, ...ADMIN_COMMANDS];
+for (const cmd of allEngagementCommands) {
+    assert.ok(registeredNames.includes(cmd), `Engagement command '${cmd}' must exist in command registry`);
+    assert.ok(COMMAND_DESCRIPTIONS[cmd] && COMMAND_DESCRIPTIONS[cmd].length > 0, `COMMAND_DESCRIPTIONS must have non-empty description for '${cmd}'`);
+}
+assert.ok(ADMIN_COMMANDS.includes('config'), 'ADMIN_COMMANDS includes config');
+assert.ok(ADMIN_COMMANDS.includes('poll'), 'ADMIN_COMMANDS includes poll');
+
+for (const dep of ['asknow', 'resolve', 'relinkpoll', 'settings', 'setwelcome', 'setcc', 'setcontrolrole', 'invitepoints']) {
+    assert.ok(!USER_COMMANDS.includes(dep), `USER_COMMANDS must not include deprecated '${dep}'`);
+    assert.ok(!ADMIN_COMMANDS.includes(dep), `ADMIN_COMMANDS must not include deprecated '${dep}'`);
+    assert.strictEqual(COMMAND_DESCRIPTIONS[dep], undefined, `COMMAND_DESCRIPTIONS must not have deprecated '${dep}'`);
+}
+
 console.log('commands-registry tests passed');

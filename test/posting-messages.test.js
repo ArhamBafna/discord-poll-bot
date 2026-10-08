@@ -116,4 +116,17 @@ assert.strictEqual(relabelKind({ kind: 'fallback' }, true), 'fallback', 'Fallbac
 assert.strictEqual(relabelKind({ kind: 'AI' }, false), 'AI', 'AI poll stays AI on normal post');
 assert.strictEqual(relabelKind({ kind: 'fallback' }, false), 'fallback', 'Fallback poll stays fallback on normal post');
 
+// 12. Fallback polls comply with Discord limits (question <= 300, options <= 55)
+const { FALLBACK_POLLS, FALLBACK_DISCUSSION_POLLS } = require('../services/polls/fallbacks');
+const allPolls = [...FALLBACK_POLLS, ...FALLBACK_DISCUSSION_POLLS];
+for (const poll of allPolls) {
+    assert.ok(poll.question && poll.question.length <= 300, `Question "${poll.question}" must not exceed 300 chars`);
+    for (const option of poll.options) {
+        assert.ok(
+            option.length <= 55,
+            `Option "${option}" in poll "${poll.question}" exceeds Discord 55-char limit (length: ${option.length})`
+        );
+    }
+}
+
 console.log('posting messages tests passed');

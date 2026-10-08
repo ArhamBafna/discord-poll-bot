@@ -73,6 +73,23 @@ fs.writeFileSync(fileC, JSON.stringify(snapDiff));
 const result2 = runValidate(fileA, fileC);
 assert.strictEqual(result2.pass, false, 'different snapshots validate FAIL');
 
+// stableStringify must sort keys so equivalent objects hash identically
+const a = { b: 1, a: { z: 1, y: 2 } };
+const b = { a: { y: 2, z: 1 }, b: 1 };
+assert.strictEqual(stableStringify(a), stableStringify(b), 'equivalent objects produce identical strings');
+
+const c = { b: 2, a: { z: 1, y: 2 } };
+assert.notStrictEqual(stableStringify(a), stableStringify(c), 'different objects differ');
+
+// sortRows must return rows in stable sorted order without mutating original
+const rows = [{ x: 2 }, { x: 1 }, { x: 3 }];
+const sorted = sortRows(rows);
+assert.strictEqual(sorted[0].x, 1, 'first row is smallest');
+assert.strictEqual(sorted[2].x, 3, 'last row is largest');
+assert.strictEqual(sorted.length, 3, 'no rows lost');
+assert.strictEqual(rows[0].x, 2, 'original rows unchanged');
+assert.strictEqual(sortRows([]).length, 0, 'empty input gives empty output');
+
 // stableStringify round-trip: parse the JSON back and compare
 const original = { leaderboard: [{ guild_id: 'g', user_id: 'u', score: 0 }] };
 const serialized = stableStringify(original);

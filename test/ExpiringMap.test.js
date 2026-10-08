@@ -1,10 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { setTimeout } = require('node:timers/promises');
 const ExpiringMap = require('../lib/ExpiringMap');
 
 test('ExpiringMap tests', async (t) => {
-    
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout', 'setInterval'] });
+
     await t.test('should set and get a value before it expires', () => {
         const map = new ExpiringMap(5000);
         map.set('user123', { spamCount: 1 });
@@ -13,15 +13,14 @@ test('ExpiringMap tests', async (t) => {
         map.destroy();
     });
 
-    await t.test('should automatically delete value after TTL expires', async () => {
-        // We set a very short TTL of 100ms for testing
+    await t.test('should automatically delete value after TTL expires', () => {
         const map = new ExpiringMap(100);
         map.set('user123', 'spamming');
         
         assert.strictEqual(map.get('user123'), 'spamming');
         
-        // Wait for TTL to expire
-        await setTimeout(150);
+        // Advance clock past TTL
+        t.mock.timers.tick(150);
         
         // Value should be gone
         assert.strictEqual(map.get('user123'), undefined);
@@ -30,32 +29,30 @@ test('ExpiringMap tests', async (t) => {
         map.destroy();
     });
 
-    await t.test('should not leak memory - size should decrease after expiration', async () => {
+    await t.test('should not leak memory - size should decrease after expiration', () => {
         const map = new ExpiringMap(100);
         map.set('a', 1);
         map.set('b', 2);
         
         assert.strictEqual(map.size, 2);
         
-        await setTimeout(150);
+        t.mock.timers.tick(150);
         
         assert.strictEqual(map.size, 0);
         map.destroy();
     });
 
-    await t.test('should handle rapid updates to the same key correctly', async () => {
+    await t.test('should handle rapid updates to the same key correctly', () => {
         const map = new ExpiringMap(200);
         map.set('key', 1);
         
-        await setTimeout(100);
-        // Update key before it expires. Should reset or respect TTL based on implementation.
-        // Usually, set() resets the TTL in an ExpiringMap.
+        t.mock.timers.tick(100);
+        // Update key before it expires. set() resets the TTL in ExpiringMap.
         map.set('key', 2);
         
-        await setTimeout(150); // Total 250ms since first set, 150ms since second set
+        t.mock.timers.tick(150); // Total 250ms since first set, 150ms since second set
         
-        // If TTL was reset, it should still be here (150 < 200). 
-        // If we didn't implement TTL reset correctly, this will fail! (Error should arise if code is naive)
+        // If TTL was reset, it should still be here (150 < 200).
         assert.strictEqual(map.get('key'), 2);
         
         map.destroy();
