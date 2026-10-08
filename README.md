@@ -22,8 +22,9 @@ You need:
 How to set up:
 - Use git to clone this repo. 
 - Install dependencies with 'npm install'
-- Copy the .env.example as .env and fill it out with your bot token, Gemini API key, database URL, target channel IDs, and optionally OpenRouter API key.
+- Copy the .env.example as .env and fill it out with your bot token, Gemini API key, database URL, and optionally OpenRouter API key.
 - Actually run it with 'npm start'
+- When the bot joins a server, run `/setpollchannel <#channel>` in Discord so it knows where to post daily polls and weekly summaries.
 
 ## Features
 
@@ -53,6 +54,7 @@ How to set up:
 - `/help` - Shows the help message with all available commands.
 
 **Only admins can use:** (requires the configured control role, default `bot-control`, or bot creator)
+- `/setpollchannel <#channel>` - Sets which channel receives daily polls and weekly summaries (required for every server the bot joins).
 - `/config view` - Displays the current server configuration overview and health stats.
 - `/config welcome <template>` - Sets the welcome message template for new members. Supports `{user}`, `{inviter}`, `{cc}`, and `{points_msg}`.
 - `/config cc <@user>` - Sets which user to CC in new member welcome messages.
