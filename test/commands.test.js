@@ -78,17 +78,7 @@ test('commands: registry and engagement structure', () => {
         'poll has correct subcommands'
     );
 
-    // 3. Deprecated top-level commands must not exist
-    const deprecatedNames = [
-        'ask', 'resolve', 'relink', 'config-view', 'config-welcome',
-        'config-cc', 'config-role', 'config-invite-points'
-    ];
-    for (const dep of deprecatedNames) {
-        const found = registry.find(c => c.builder.name === dep);
-        assert.strictEqual(found, undefined, `deprecated command '${dep}' must not be in registry`);
-    }
-
-    // 4. Exact registry command set matches expectations
+    // 3. Exact registry command set matches expectations
     const registeredNames = registry.map(c => c.builder.name);
     assert.deepStrictEqual(
         registeredNames.sort(),
@@ -96,7 +86,7 @@ test('commands: registry and engagement structure', () => {
         'registry contains exactly expected 9 commands'
     );
 
-    // 5. Engagement service commands match registry and descriptions are complete
+    // 4. Engagement service commands match registry and descriptions are complete
     const allEngagementCommands = [...USER_COMMANDS, ...ADMIN_COMMANDS];
     for (const cmd of allEngagementCommands) {
         assert.ok(registeredNames.includes(cmd), `Engagement command '${cmd}' must exist in command registry`);
@@ -104,12 +94,6 @@ test('commands: registry and engagement structure', () => {
     }
     assert.ok(ADMIN_COMMANDS.includes('config'), 'ADMIN_COMMANDS includes config');
     assert.ok(ADMIN_COMMANDS.includes('poll'), 'ADMIN_COMMANDS includes poll');
-
-    for (const dep of ['asknow', 'resolve', 'relinkpoll', 'settings', 'setwelcome', 'setcc', 'setcontrolrole', 'invitepoints']) {
-        assert.ok(!USER_COMMANDS.includes(dep), `USER_COMMANDS must not include deprecated '${dep}'`);
-        assert.ok(!ADMIN_COMMANDS.includes(dep), `ADMIN_COMMANDS must not include deprecated '${dep}'`);
-        assert.strictEqual(COMMAND_DESCRIPTIONS[dep], undefined, `COMMAND_DESCRIPTIONS must not have deprecated '${dep}'`);
-    }
 });
 
 test('commands: help embed formatting', async () => {

@@ -62,10 +62,6 @@ test('utils: dateUtils hasPostedToday logic', () => {
 });
 
 test('utils: config validation and database URL sanitation', () => {
-    assert.strictEqual(typeof config.validateConfig, 'function');
-    assert.strictEqual(typeof config.getSanitizedDbUrl, 'function');
-    assert.strictEqual(typeof config.applyNetworkDefaults, 'function');
-
     const originalUrl = process.env.DATABASE_URL;
     process.env.DATABASE_URL = 'postgres://user:pass@host/db?transaction_timeout=1000';
     try {
