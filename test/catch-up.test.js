@@ -55,11 +55,13 @@ let generationCalls = 0;
 let generationImpl = null;
 
 const originalLoadState = dbOperations.loadStateForGuild;
+const originalSaveState = dbOperations.saveStateToDB;
 const originalGetState = stateManager.getServerState;
 const originalGenerate = posting.getOrGenerateDailyPoll;
 const originalGetServer = stateManager.serverStateCache;
 
 dbOperations.loadStateForGuild = async () => {};
+dbOperations.saveStateToDB = async () => {};
 posting.getOrGenerateDailyPoll = async (...args) => {
     generationCalls++;
     return generationImpl(...args);
@@ -142,6 +144,7 @@ function statesByGuild(map) {
 
 .then(() => {
     dbOperations.loadStateForGuild = originalLoadState;
+    dbOperations.saveStateToDB = originalSaveState;
     stateManager.getServerState = originalGetState;
     stateManager.serverStateCache = originalGetServer;
     posting.getOrGenerateDailyPoll = originalGenerate;
@@ -149,6 +152,7 @@ function statesByGuild(map) {
 })
 .catch((err) => {
     dbOperations.loadStateForGuild = originalLoadState;
+    dbOperations.saveStateToDB = originalSaveState;
     stateManager.getServerState = originalGetState;
     stateManager.serverStateCache = originalGetServer;
     posting.getOrGenerateDailyPoll = originalGenerate;
