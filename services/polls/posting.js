@@ -145,7 +145,7 @@ async function performDailyPost(channelId, discordClient, isCatchUp = false, sha
 
         const pollIntroMessage = getPollIntroMessage(newPollData, isCatchUp, resolvePollMention(state, channel));
 
-        const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: newPollData.question }, answers: newPollData.options.map(o => ({ text: o })), duration: 24, allowMultiselect: false } });
+        const newPollMessage = await channel.send({ content: pollIntroMessage, poll: { question: { text: String(newPollData.question).slice(0, 300) }, answers: newPollData.options.map(o => ({ text: String(o).slice(0, 55) })), duration: 24, allowMultiselect: false } });
         newPollData.pollMessageId = newPollMessage.id;
         newPollData.createdAt = new Date().toISOString();
 

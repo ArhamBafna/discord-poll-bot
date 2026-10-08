@@ -45,7 +45,7 @@ const FALLBACK_POLLS = [
     {
         type: 'trivia',
         question: "What does multimodal AI mean?",
-        options: ["It only understands math", "It needs multiple API keys", "It can work with more than one data type, like text and images", "It only runs on phones"],
+        options: ["It only understands math", "It needs multiple API keys", "Handles multiple data types like text and images", "It only runs on phones"],
         correctAnswerIndex: 2,
         explanation: "Multimodal models can process or generate across different formats such as text, image, audio, or video."
     },
