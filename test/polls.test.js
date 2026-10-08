@@ -1,4 +1,7 @@
 // Consolidated poll tests: formatting, mentions, Discord limits, and catch-up scheduling
+const logger = require('../utils/logger');
+logger.log = () => {};
+
 const test = require('node:test');
 const assert = require('node:assert');
 const { resolvePollMention, applyPollMention, describePollMention } = require('../lib/mentions');
@@ -11,16 +14,19 @@ const { checkForMissedPolls } = require('../services/polls/scheduling');
 
 const ROLE_ID = '1234567890';
 
-function fakeChannel({ existingRoleIds = [ROLE_ID], canMentionEveryone = true } = {}) {
-    const roles = new Map(existingRoleIds.map(id => [id, { id, name: 'Fake Role' }]));
+function fakeChannel({ id = 'channel-1', existingRoleIds = [ROLE_ID], canMentionEveryone = true } = {}) {
+    const roles = new Map(existingRoleIds.map(rId => [rId, { id: rId, name: 'Fake Role' }]));
     return {
-        id: 'channel-1',
+        id,
+        name: `channel-${id}`,
         guild: {
-            id: 'guild-1',
+            id: `guild-${id}`,
             members: { me: { id: 'bot-1' } },
             roles: { cache: roles }
         },
-        permissionsFor: () => ({ has: () => canMentionEveryone })
+        permissionsFor: () => ({ has: () => canMentionEveryone }),
+        send: async () => ({ id: 'posted-1' }),
+        messages: { fetch: async () => { throw new Error('no prior poll to resolve'); } }
     };
 }
 
@@ -110,7 +116,6 @@ test('polls: intro messages and fallback compliance', () => {
 test('polls: missed daily poll catch-up scheduling', async () => {
     const origLog = console.log;
     const origError = console.error;
-    // Mute console output during catch-up tests
     console.log = () => {};
     console.error = () => {};
 
@@ -130,16 +135,8 @@ test('polls: missed daily poll catch-up scheduling', async () => {
         return Promise.resolve().then(fn).finally(() => { globalThis.Date = RealDate; });
     }
 
-    const fakeCatchUpChannel = (channelId) => ({
-        id: channelId,
-        name: `channel-${channelId}`,
-        guild: { id: `guild-${channelId}` },
-        send: async () => ({ id: 'posted-1' }),
-        messages: { fetch: async () => { throw new Error('no prior poll to resolve'); } }
-    });
-
     const fakeClient = {
-        channels: { fetch: async (id) => fakeCatchUpChannel(id) },
+        channels: { fetch: async (id) => fakeChannel({ id }) },
         guilds: {
             cache: new Map([
                 ['guild-111', { id: 'guild-111' }],

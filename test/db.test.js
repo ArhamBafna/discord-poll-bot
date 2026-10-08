@@ -1,10 +1,7 @@
 // Consolidated database tests: storage codecs and backup snapshot validation
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
 const crypto = require('crypto');
-const path = require('path');
-const os = require('os');
 const { CODECS, isSettingsKey, parseStoredValue, serializeStoredValue } = require('../database/codecs');
 const { stableStringify, sortRows, hashSnapshot, KNOWN_TABLES } = require('../tools/db/tables');
 
@@ -61,74 +58,63 @@ test('db: codec serialization and parsing', () => {
     assert.strictEqual(parseStoredValue('pollMention', 'corrupt-not-json'), null);
 });
 
-test('db: backup snapshotting and table sorting', () => {
-    const tmpDir = path.join(os.tmpdir(), 'db-test-' + Date.now());
-    fs.mkdirSync(tmpDir, { recursive: true });
-
-    try {
-        function makeSnapshot(data) {
-            const tables = {};
-            for (const t of KNOWN_TABLES) tables[t] = data[t] || [];
-            return {
-                meta: { taken_at: new Date().toISOString(), tables: KNOWN_TABLES },
-                schema: { columns: [], indexes: [] },
-                data: tables,
-                hash: hashSnapshot(crypto, tables)
-            };
-        }
-
-        function runValidate(fileA, fileB) {
-            const before = JSON.parse(fs.readFileSync(fileA, 'utf8'));
-            const after = JSON.parse(fs.readFileSync(fileB, 'utf8'));
-            let pass = true;
-            for (const t of KNOWN_TABLES) {
-                const ha = hashSnapshot(crypto, { [t]: before.data[t] || [] });
-                const hb = hashSnapshot(crypto, { [t]: after.data[t] || [] });
-                if (ha !== hb) pass = false;
-            }
-            return { pass, overallA: before.hash, overallB: after.hash };
-        }
-
-        // Schema verification
-        assert.strictEqual(KNOWN_TABLES.length, 5);
-        assert.ok(KNOWN_TABLES.includes('kv_store'));
-        assert.ok(!KNOWN_TABLES.includes('state'));
-        assert.ok(!KNOWN_TABLES.includes('knowledge_base'));
-
-        // Snapshot structure
-        const snap = makeSnapshot({ leaderboard: [{ guild_id: 'g', user_id: 'u', score: 0 }] });
-        assert.ok(snap.meta && snap.schema && snap.data && snap.hash);
-        assert.strictEqual(snap.hash.length, 64);
-
-        // Identical snapshots pass validation
-        const fileA = path.join(tmpDir, 'a.json');
-        const fileB = path.join(tmpDir, 'b.json');
-        fs.writeFileSync(fileA, JSON.stringify(snap));
-        fs.writeFileSync(fileB, JSON.stringify(JSON.parse(JSON.stringify(snap))));
-        assert.strictEqual(runValidate(fileA, fileB).pass, true);
-
-        // Different snapshots fail validation
-        const snapDiff = makeSnapshot({ leaderboard: [{ guild_id: 'g', user_id: 'u', score: 1 }] });
-        const fileC = path.join(tmpDir, 'c.json');
-        fs.writeFileSync(fileC, JSON.stringify(snapDiff));
-        assert.strictEqual(runValidate(fileA, fileC).pass, false);
-
-        // Key sorting & row sorting
-        const a = { b: 1, a: { z: 1, y: 2 } };
-        const b = { a: { y: 2, z: 1 }, b: 1 };
-        assert.strictEqual(stableStringify(a), stableStringify(b));
-
-        const rows = [{ x: 2 }, { x: 1 }, { x: 3 }];
-        const sorted = sortRows(rows);
-        assert.strictEqual(sorted[0].x, 1);
-        assert.strictEqual(sorted[2].x, 3);
-        assert.strictEqual(rows[0].x, 2);
-        assert.strictEqual(sortRows([]).length, 0);
-
-        // Round trip
-        const original = { leaderboard: [{ guild_id: 'g', user_id: 'u', score: 0 }] };
-        assert.deepStrictEqual(JSON.parse(stableStringify(original)), original);
-    } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+test('db: backup snapshotting and table sorting (in-memory)', () => {
+    function makeSnapshot(data) {
+        const tables = {};
+        for (const t of KNOWN_TABLES) tables[t] = data[t] || [];
+        return {
+            meta: { taken_at: new Date().toISOString(), tables: KNOWN_TABLES },
+            schema: { columns: [], indexes: [] },
+            data: tables,
+            hash: hashSnapshot(crypto, tables)
+        };
     }
+
+    function validateSnapshots(before, after) {
+        let pass = true;
+        for (const t of KNOWN_TABLES) {
+            const ha = hashSnapshot(crypto, { [t]: before.data[t] || [] });
+            const hb = hashSnapshot(crypto, { [t]: after.data[t] || [] });
+            if (ha !== hb) pass = false;
+        }
+        return { pass, overallA: before.hash, overallB: after.hash };
+    }
+
+    // Schema verification
+    assert.strictEqual(KNOWN_TABLES.length, 5);
+    assert.ok(KNOWN_TABLES.includes('kv_store'));
+    assert.ok(!KNOWN_TABLES.includes('state'));
+    assert.ok(!KNOWN_TABLES.includes('knowledge_base'));
+
+    // Snapshot structure
+    const snap = makeSnapshot({ leaderboard: [{ guild_id: 'g', user_id: 'u', score: 0 }] });
+    assert.ok(snap.meta && snap.schema && snap.data && snap.hash);
+    assert.strictEqual(snap.hash.length, 64);
+
+    // Identical snapshots pass validation
+    const clone = JSON.parse(JSON.stringify(snap));
+    const result1 = validateSnapshots(snap, clone);
+    assert.strictEqual(result1.pass, true);
+    assert.strictEqual(result1.overallA, result1.overallB);
+
+    // Different snapshots fail validation
+    const snapDiff = makeSnapshot({ leaderboard: [{ guild_id: 'g', user_id: 'u', score: 1 }] });
+    const result2 = validateSnapshots(snap, snapDiff);
+    assert.strictEqual(result2.pass, false);
+
+    // Key sorting & row sorting
+    const a = { b: 1, a: { z: 1, y: 2 } };
+    const b = { a: { y: 2, z: 1 }, b: 1 };
+    assert.strictEqual(stableStringify(a), stableStringify(b));
+
+    const rows = [{ x: 2 }, { x: 1 }, { x: 3 }];
+    const sorted = sortRows(rows);
+    assert.strictEqual(sorted[0].x, 1);
+    assert.strictEqual(sorted[2].x, 3);
+    assert.strictEqual(rows[0].x, 2);
+    assert.strictEqual(sortRows([]).length, 0);
+
+    // Round trip
+    const original = { leaderboard: [{ guild_id: 'g', user_id: 'u', score: 0 }] };
+    assert.deepStrictEqual(JSON.parse(stableStringify(original)), original);
 });
